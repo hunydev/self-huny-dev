@@ -5,6 +5,10 @@ import { itemsRoutes } from './routes/items';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/upload';
 import { shareRoutes } from './routes/share';
+// @ts-ignore - This is injected by wrangler at build time
+import manifestJSON from '__STATIC_CONTENT_MANIFEST';
+
+const assetManifest = JSON.parse(manifestJSON);
 
 export interface Env {
   DB: D1Database;
@@ -104,7 +108,7 @@ app.get('*', async (c) => {
     
     const options = {
       ASSET_NAMESPACE: c.env.__STATIC_CONTENT,
-      ASSET_MANIFEST: (globalThis as any).__STATIC_CONTENT_MANIFEST,
+      ASSET_MANIFEST: assetManifest,
     };
 
     const page = await getAssetFromKV(event as any, options);
@@ -126,7 +130,7 @@ app.get('*', async (c) => {
         
         const options = {
           ASSET_NAMESPACE: c.env.__STATIC_CONTENT,
-          ASSET_MANIFEST: (globalThis as any).__STATIC_CONTENT_MANIFEST,
+          ASSET_MANIFEST: assetManifest,
         };
         
         const page = await getAssetFromKV(event as any, options);
