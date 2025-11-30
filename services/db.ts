@@ -1,107 +1,182 @@
-import { Item, Tag } from '../types';
+import { Item, ItemType, Tag } from '../types';
 
-const DB_NAME = 'SelfAppDB';
-const DB_VERSION = 1;
-const STORE_ITEMS = 'items';
-const STORE_TAGS = 'tags';
+const API_BASE = '/api';
 
-export const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+interface ApiItem {
+  id: string;
+  type: string;
+  content: string;
+  fileKey?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  title?: string;
+  tags: string[];
+  createdAt: number;
+}
 
-    request.onerror = (event) => reject('IndexedDB error: ' + (event.target as any).error);
+interface ApiTag {
+  id: string;
+  name: string;
+  color?: string;
+}
 
-    request.onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result);
+interface UploadResult {
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
 
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_ITEMS)) {
-        const itemStore = db.createObjectStore(STORE_ITEMS, { keyPath: 'id' });
-        itemStore.createIndex('createdAt', 'createdAt', { unique: false });
-        itemStore.createIndex('type', 'type', { unique: false });
-      }
-      if (!db.objectStoreNames.contains(STORE_TAGS)) {
-        db.createObjectStore(STORE_TAGS, { keyPath: 'id' });
-      }
-    };
-  });
+// Transform API response to frontend Item format
+const transformItem = (apiItem: ApiItem): Item => ({
+  id: apiItem.id,
+  type: apiItem.type as ItemType,
+  content: apiItem.content,
+  fileKey: apiItem.fileKey,
+  fileName: apiItem.fileName,
+  fileSize: apiItem.fileSize,
+  mimeType: apiItem.mimeType,
+  title: apiItem.title,
+  tags: apiItem.tags || [],
+  createdAt: apiItem.createdAt,
+});
+
+// Transform API response to frontend Tag format
+const transformTag = (apiTag: ApiTag): Tag => ({
+  id: apiTag.id,
+  name: apiTag.name,
+  color: apiTag.color,
+});
+
+// Get all items
+export const getItems = async (type?: ItemType | 'all'): Promise<Item[]> => {
+  const params = new URLSearchParams();
+  if (type && type !== 'all') {
+    params.set('type', type);
+  }
+
+  const url = `${API_BASE}/items${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch items');
+  }
+  
+  const data: ApiItem[] = await response.json();
+  return data.map(transformItem);
 };
 
-export const saveItem = async (item: Item): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_ITEMS], 'readwrite');
-    const store = transaction.objectStore(STORE_ITEMS);
-    const request = store.put(item);
+// Save item
+export const saveItem = async (item: Omit<Item, 'id' | 'createdAt'>): Promise<Item> => {
+  let fileKey: string | undefined;
+  let fileName: string | undefined;
+  let fileSize: number | undefined;
+  let mimeType: string | undefined;
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+  // Upload file first if exists
+  if (item.fileBlob) {
+    const formData = new FormData();
+    formData.append('file', item.fileBlob, item.fileName || 'file');
+    
+    const uploadResponse = await fetch(`${API_BASE}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error('Failed to upload file');
+    }
+
+    const uploadResult: UploadResult = await uploadResponse.json();
+    fileKey = uploadResult.fileKey;
+    fileName = uploadResult.fileName;
+    fileSize = uploadResult.fileSize;
+    mimeType = uploadResult.mimeType;
+  }
+
+  // Create item
+  const response = await fetch(`${API_BASE}/items`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      type: item.type,
+      content: item.content,
+      fileKey: fileKey || item.fileKey,
+      fileName: fileName || item.fileName,
+      fileSize: fileSize || item.fileSize,
+      mimeType: mimeType || item.mimeType,
+      title: item.title,
+      tags: item.tags,
+    }),
   });
+
+  if (!response.ok) {
+    throw new Error('Failed to save item');
+  }
+
+  const data: ApiItem = await response.json();
+  return transformItem(data);
 };
 
-export const getItems = async (): Promise<Item[]> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_ITEMS], 'readonly');
-    const store = transaction.objectStore(STORE_ITEMS);
-    const index = store.index('createdAt');
-    const request = index.openCursor(null, 'prev'); // Sort by newest first
-    const results: Item[] = [];
-
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        results.push(cursor.value);
-        cursor.continue();
-      } else {
-        resolve(results);
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
-};
-
+// Delete item
 export const deleteItem = async (id: string): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_ITEMS], 'readwrite');
-    const store = transaction.objectStore(STORE_ITEMS);
-    const request = store.delete(id);
-
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+  const response = await fetch(`${API_BASE}/items/${id}`, {
+    method: 'DELETE',
   });
+
+  if (!response.ok) {
+    throw new Error('Failed to delete item');
+  }
 };
 
-export const saveTag = async (tag: Tag): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_TAGS], 'readwrite');
-    const store = transaction.objectStore(STORE_TAGS);
-    const request = store.put(tag);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-};
-
+// Get all tags
 export const getTags = async (): Promise<Tag[]> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_TAGS], 'readonly');
-    const store = transaction.objectStore(STORE_TAGS);
-    const request = store.getAll();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  const response = await fetch(`${API_BASE}/tags`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch tags');
+  }
+  
+  const data: ApiTag[] = await response.json();
+  return data.map(transformTag);
 };
 
-export const deleteTag = async (id: string): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_TAGS], 'readwrite');
-    const store = transaction.objectStore(STORE_TAGS);
-    const request = store.delete(id);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+// Save tag
+export const saveTag = async (tag: Tag): Promise<Tag> => {
+  const response = await fetch(`${API_BASE}/tags`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: tag.name,
+      color: tag.color,
+    }),
   });
+
+  if (!response.ok) {
+    throw new Error('Failed to save tag');
+  }
+
+  const data: ApiTag = await response.json();
+  return transformTag(data);
+};
+
+// Delete tag
+export const deleteTag = async (id: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/tags/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to delete tag');
+  }
+};
+
+// Get file URL
+export const getFileUrl = (fileKey: string): string => {
+  return `${API_BASE}/upload/${fileKey}`;
 };

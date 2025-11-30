@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<ItemType | 'all'>('all');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [shareSuccess, setShareSuccess] = useState<boolean | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -31,61 +32,60 @@ const App: React.FC = () => {
     };
     loadData();
     
-    // Simulate checking for Share Intent params (GET)
-    // In a real PWA context, these would come from the Manifest start_url query params
+    // Check for share result notification
     const params = new URLSearchParams(window.location.search);
-    const title = params.get('title');
-    const text = params.get('text');
-    const url = params.get('url');
-
-    if (title || text || url) {
-      // Create a new item from share intent
-      const content = url || text || title || '';
-      const type = url ? ItemType.LINK : ItemType.TEXT;
-      
-      const newItem: Item = {
-        id: crypto.randomUUID(),
-        type,
-        content,
-        title: title || undefined,
-        tags: [],
-        createdAt: Date.now()
-      };
-      
-      db.saveItem(newItem).then(() => {
-        setItems(prev => [newItem, ...prev]);
-        // Clean URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      });
+    const shared = params.get('shared');
+    
+    if (shared === 'success') {
+      setShareSuccess(true);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Clear notification after 3 seconds
+      setTimeout(() => setShareSuccess(null), 3000);
+      // Reload items to show newly shared content
+      loadData();
+    } else if (shared === 'error') {
+      setShareSuccess(false);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => setShareSuccess(null), 3000);
     }
-
   }, []);
 
   const handleSaveItem = async (draft: Omit<Item, 'id' | 'createdAt'>) => {
-    const newItem: Item = {
-      ...draft,
-      id: crypto.randomUUID(),
-      createdAt: Date.now()
-    };
-
-    await db.saveItem(newItem);
-    setItems(prev => [newItem, ...prev]);
+    try {
+      const newItem = await db.saveItem(draft);
+      setItems(prev => [newItem, ...prev]);
+    } catch (err) {
+      console.error("Failed to save item", err);
+    }
   };
 
   const handleDeleteItem = async (id: string) => {
-    await db.deleteItem(id);
-    setItems(prev => prev.filter(i => i.id !== id));
+    try {
+      await db.deleteItem(id);
+      setItems(prev => prev.filter(i => i.id !== id));
+    } catch (err) {
+      console.error("Failed to delete item", err);
+    }
   };
 
   const handleAddTag = async (name: string) => {
-    const newTag: Tag = { id: crypto.randomUUID(), name };
-    await db.saveTag(newTag);
-    setTags(prev => [...prev, newTag]);
+    try {
+      const newTag: Tag = { id: crypto.randomUUID(), name };
+      const savedTag = await db.saveTag(newTag);
+      setTags(prev => [...prev, savedTag]);
+    } catch (err) {
+      console.error("Failed to add tag", err);
+    }
   };
 
   const handleDeleteTag = async (id: string) => {
-    await db.deleteTag(id);
-    setTags(prev => prev.filter(t => t.id !== id));
+    try {
+      await db.deleteTag(id);
+      setTags(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      console.error("Failed to delete tag", err);
+    }
   };
 
   const filteredItems = useMemo(() => {
@@ -94,11 +94,27 @@ const App: React.FC = () => {
   }, [items, activeFilter]);
 
   if (isLoading) {
-    return <div className="h-screen w-full flex items-center justify-center bg-slate-50 text-slate-400">Loading Self...</div>;
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          <span className="text-slate-400">Loading Self...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {/* Share notification */}
+      {shareSuccess !== null && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${
+          shareSuccess ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {shareSuccess ? '✓ Successfully shared!' : '✗ Failed to share'}
+        </div>
+      )}
+
       <Sidebar 
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}
@@ -121,7 +137,7 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 lg:p-8 scroll-smooth">
           <div className="max-w-7xl mx-auto space-y-8">
             
-            {/* Input Section - Sticky-ish or just top */}
+            {/* Input Section */}
             <div className="max-w-3xl mx-auto w-full">
               <InputArea 
                 onSave={handleSaveItem} 

@@ -1,0 +1,25 @@
+name = "self"
+main = "worker/src/index.ts"
+compatibility_date = "2024-11-01"
+
+[site]
+bucket = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "self"
+database_id = "f19650fd-8825-4829-96e6-cf580aca86d2"
+migrations_dir = "worker/migrations"
+
+[vars]
+ENVIRONMENT = "production"
+
+# R2 bucket for file storage (images, videos, files)
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "self-files"
+
+# Dev settings
+[dev]
+port = 8787
+local_protocol = "http"
