@@ -19,6 +19,11 @@ ENVIRONMENT = "production"
 binding = "R2_BUCKET"
 bucket_name = "self-files"
 
+# Custom domain
+routes = [
+  { pattern = "self.huny.dev", custom_domain = true }
+]
+
 # Dev settings
 [dev]
 port = 8787
