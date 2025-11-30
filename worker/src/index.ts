@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { getAssetFromKV, NotFoundError } from '@cloudflare/kv-asset-handler';
 import { itemsRoutes } from './routes/items';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/upload';
@@ -11,9 +12,6 @@ export interface Env {
   ENVIRONMENT: string;
   __STATIC_CONTENT: KVNamespace;
 }
-
-// Asset manifest for Workers Sites
-declare const __STATIC_CONTENT_MANIFEST: string;
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -96,90 +94,56 @@ app.post('/share-target', async (c) => {
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', time: new Date().toISOString() }));
 
-// Static file serving for Workers Sites
+// Static file serving for Workers Sites using kv-asset-handler
 app.get('*', async (c) => {
   try {
-    const url = new URL(c.req.url);
-    let pathname = url.pathname;
+    const event = {
+      request: c.req.raw,
+      waitUntil: (promise: Promise<any>) => c.executionCtx.waitUntil(promise),
+    };
     
-    // Default to index.html for root
-    if (pathname === '/') {
-      pathname = '/index.html';
+    const options = {
+      ASSET_NAMESPACE: c.env.__STATIC_CONTENT,
+      ASSET_MANIFEST: (globalThis as any).__STATIC_CONTENT_MANIFEST,
+    };
+
+    const page = await getAssetFromKV(event as any, options);
+    
+    // Clone the response to modify headers
+    const response = new Response(page.body, page);
+    response.headers.set('X-XSS-Protection', '1; mode=block');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    
+    return response;
+  } catch (e) {
+    if (e instanceof NotFoundError) {
+      // SPA fallback: serve index.html for all non-asset routes
+      try {
+        const event = {
+          request: new Request(new URL('/index.html', c.req.url).toString(), c.req.raw),
+          waitUntil: (promise: Promise<any>) => c.executionCtx.waitUntil(promise),
+        };
+        
+        const options = {
+          ASSET_NAMESPACE: c.env.__STATIC_CONTENT,
+          ASSET_MANIFEST: (globalThis as any).__STATIC_CONTENT_MANIFEST,
+        };
+        
+        const page = await getAssetFromKV(event as any, options);
+        return new Response(page.body, {
+          ...page,
+          headers: {
+            ...Object.fromEntries(page.headers),
+            'Content-Type': 'text/html; charset=utf-8',
+          },
+        });
+      } catch {
+        return c.text('Not Found', 404);
+      }
     }
-    
-    // Remove leading slash for manifest lookup
-    const assetPath = pathname.slice(1);
-    
-    // Try to get asset from KV
-    const manifest = typeof __STATIC_CONTENT_MANIFEST === 'string' 
-      ? JSON.parse(__STATIC_CONTENT_MANIFEST) 
-      : __STATIC_CONTENT_MANIFEST;
-    
-    const manifestKey = manifest[assetPath];
-    const key = manifestKey || assetPath;
-    
-    const asset = await c.env.__STATIC_CONTENT.get(key, { type: 'arrayBuffer' });
-    
-    if (asset) {
-      // Determine content type
-      const contentType = getContentType(pathname);
-      
-      return new Response(asset, {
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': pathname.includes('.') && !pathname.endsWith('.html')
-            ? 'public, max-age=31536000, immutable'
-            : 'no-cache',
-        },
-      });
-    }
-    
-    // Fallback to index.html for SPA routing
-    const indexKey = manifest['index.html'] || 'index.html';
-    const indexAsset = await c.env.__STATIC_CONTENT.get(indexKey, { type: 'arrayBuffer' });
-    
-    if (indexAsset) {
-      return new Response(indexAsset, {
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache',
-        },
-      });
-    }
-    
-    return c.text('Not Found', 404);
-  } catch (error) {
-    console.error('Static file error:', error);
+    console.error('Static file error:', e);
     return c.text('Internal Server Error', 500);
   }
 });
-
-function getContentType(pathname: string): string {
-  const ext = pathname.split('.').pop()?.toLowerCase();
-  const types: Record<string, string> = {
-    'html': 'text/html; charset=utf-8',
-    'css': 'text/css; charset=utf-8',
-    'js': 'application/javascript; charset=utf-8',
-    'json': 'application/json; charset=utf-8',
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'gif': 'image/gif',
-    'svg': 'image/svg+xml',
-    'webp': 'image/webp',
-    'ico': 'image/x-icon',
-    'woff': 'font/woff',
-    'woff2': 'font/woff2',
-    'ttf': 'font/ttf',
-    'otf': 'font/otf',
-    'mp4': 'video/mp4',
-    'webm': 'video/webm',
-    'mp3': 'audio/mpeg',
-    'wav': 'audio/wav',
-    'pdf': 'application/pdf',
-    'txt': 'text/plain; charset=utf-8',
-  };
-  return types[ext || ''] || 'application/octet-stream';
-}
 
 export default app;

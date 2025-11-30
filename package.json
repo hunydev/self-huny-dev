@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cloudflare/kv-asset-handler": "^0.4.1",
     "date-fns": "^4.1.0",
     "hono": "^4.6.0",
     "lucide-react": "^0.555.0",
