@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="Self - Share to yourself" />
+    <title>Self</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#4f46e5', // Indigo 600
+              secondary: '#64748b', // Slate 500
+              background: '#f8fafc', // Slate 50
+            }
+          }
+        }
+      }
+    </script>
+    <!-- PWA Manifest Placeholder - In production this would be a separate file -->
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiU2VsZiIsInNob3J0X25hbWUiOiJTZWxmIiwic3RhcnRfdXJsIjoiLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmZmZmZmYiLCJ0aGVtZV9jb2xvciI6IiM0ZjQ2ZTUiLCJzaGFyZV90YXJnZXQiOnsiYWN0aW9uIjoiLyIsIm1ldGhvZCI6IkdFVCIsInBhcmFtcyI6eyJ0aXRsZSI6InRpdGxlIiwidGV4dCI6InRleHQiLCJ1cmwiOiJ1cmwifX19" />
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-slate-50 text-slate-900 h-full overflow-hidden">
+    <div id="root" class="h-full"></div>
+  </body>
+</html>
