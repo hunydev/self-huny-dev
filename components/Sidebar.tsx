@@ -6,8 +6,7 @@ import {
   Image as ImageIcon, 
   Video, 
   File as FileIcon, 
-  Settings, 
-  Menu,
+  Settings,
   Tag as TagIcon,
   X,
   Plus

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, Link as LinkIcon, FileText } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestMetadata } from '../services/geminiService';
 

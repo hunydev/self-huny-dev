@@ -1,5 +1,3 @@
-import React from 'react';
-
 export enum ItemType {
   TEXT = 'text',
   LINK = 'link',
@@ -17,8 +15,9 @@ export interface Tag {
 export interface Item {
   id: string;
   type: ItemType;
-  content: string; // Text content or URL or Base64/Blob URL
-  fileBlob?: Blob; // For images/videos/files stored in IndexedDB
+  content: string;
+  fileBlob?: Blob; // For uploading new files (client-side only)
+  fileKey?: string; // R2 storage key (from server)
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
