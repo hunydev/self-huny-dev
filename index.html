@@ -60,14 +60,60 @@
     <!-- Register Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('SW registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.log('SW registration failed:', error);
+        window.addEventListener('load', async () => {
+          try {
+            const registration = await navigator.serviceWorker.register('/sw.js');
+            console.log('SW registered:', registration.scope);
+            
+            // Check for updates periodically
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // New version available
+                    console.log('New SW version available');
+                    // Auto-activate new service worker
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                  }
+                });
+              }
             });
+            
+            // Register background sync if supported
+            if ('sync' in registration) {
+              try {
+                await registration.sync.register('share-sync');
+              } catch (e) {
+                console.log('Background sync not supported');
+              }
+            }
+            
+            // Register periodic sync if supported
+            if ('periodicSync' in registration) {
+              try {
+                const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+                if (status.state === 'granted') {
+                  await registration.periodicSync.register('share-sync', {
+                    minInterval: 60 * 60 * 1000 // 1 hour
+                  });
+                }
+              } catch (e) {
+                console.log('Periodic sync not supported');
+              }
+            }
+          } catch (error) {
+            console.log('SW registration failed:', error);
+          }
+        });
+        
+        // Refresh page when new SW takes over
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
         });
       }
     </script>

@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Menu } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { Menu, CheckCircle, XCircle, Clock, WifiOff } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import InputArea from './components/InputArea';
 import Feed from './components/Feed';
 import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
+
+type ShareStatus = 'success' | 'error' | 'pending' | null;
 
 const App: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
@@ -12,44 +14,97 @@ const App: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<ItemType | 'all'>('all');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [shareSuccess, setShareSuccess] = useState<boolean | null>(null);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // Load initial data
+  // Load data function
+  const loadData = useCallback(async () => {
+    try {
+      const [loadedItems, loadedTags] = await Promise.all([
+        db.getItems(),
+        db.getTags()
+      ]);
+      setItems(loadedItems);
+      setTags(loadedTags);
+    } catch (err) {
+      console.error("Failed to load data", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Process share queue when back online
+  const processShareQueue = useCallback(async () => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'PROCESS_SHARE_QUEUE' });
+    }
+  }, []);
+
+  // Listen for online/offline events
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [loadedItems, loadedTags] = await Promise.all([
-          db.getItems(),
-          db.getTags()
-        ]);
-        setItems(loadedItems);
-        setTags(loadedTags);
-      } catch (err) {
-        console.error("Failed to load data", err);
-      } finally {
-        setIsLoading(false);
-      }
+    const handleOnline = () => {
+      setIsOnline(true);
+      // Try to process any queued shares
+      processShareQueue();
+      // Reload data
+      loadData();
     };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [loadData, processShareQueue]);
+
+  // Listen for service worker messages
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'SHARE_SYNCED') {
+          // Reload data when queued share is synced
+          loadData();
+          setShareStatus('success');
+          setTimeout(() => setShareStatus(null), 3000);
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleMessage);
+      };
+    }
+  }, [loadData]);
+
+  // Load initial data and check share status
+  useEffect(() => {
     loadData();
     
     // Check for share result notification
     const params = new URLSearchParams(window.location.search);
-    const shared = params.get('shared');
+    const shared = params.get('shared') as ShareStatus;
     
-    if (shared === 'success') {
-      setShareSuccess(true);
+    if (shared) {
+      setShareStatus(shared);
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
-      // Clear notification after 3 seconds
-      setTimeout(() => setShareSuccess(null), 3000);
+      
+      // Clear notification after delay (longer for pending)
+      const delay = shared === 'pending' ? 5000 : 3000;
+      setTimeout(() => setShareStatus(null), delay);
+      
       // Reload items to show newly shared content
-      loadData();
-    } else if (shared === 'error') {
-      setShareSuccess(false);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setTimeout(() => setShareSuccess(null), 3000);
+      if (shared === 'success') {
+        loadData();
+      }
     }
-  }, []);
+  }, [loadData]);
 
   const handleSaveItem = async (draft: Omit<Item, 'id' | 'createdAt'>) => {
     try {
@@ -104,14 +159,48 @@ const App: React.FC = () => {
     );
   }
 
+  // Share notification component
+  const ShareNotification = () => {
+    if (!shareStatus) return null;
+
+    const configs = {
+      success: {
+        bg: 'bg-emerald-500',
+        icon: <CheckCircle size={18} />,
+        text: '공유 완료!',
+      },
+      error: {
+        bg: 'bg-red-500',
+        icon: <XCircle size={18} />,
+        text: '공유 실패',
+      },
+      pending: {
+        bg: 'bg-amber-500',
+        icon: <Clock size={18} />,
+        text: '오프라인 - 연결 시 자동 저장됩니다',
+      },
+    };
+
+    const config = configs[shareStatus];
+
+    return (
+      <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg ${config.bg} text-white flex items-center gap-2 animate-in`}>
+        {config.icon}
+        <span className="font-medium text-sm">{config.text}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* Share notification */}
-      {shareSuccess !== null && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${
-          shareSuccess ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
-          {shareSuccess ? '✓ Successfully shared!' : '✗ Failed to share'}
+      <ShareNotification />
+
+      {/* Offline indicator */}
+      {!isOnline && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-slate-800 text-white flex items-center gap-2 text-sm shadow-lg">
+          <WifiOff size={16} />
+          <span>오프라인 모드</span>
         </div>
       )}
 

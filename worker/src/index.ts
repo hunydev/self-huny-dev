@@ -1,20 +1,15 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { getAssetFromKV, NotFoundError } from '@cloudflare/kv-asset-handler';
 import { itemsRoutes } from './routes/items';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/upload';
 import { shareRoutes } from './routes/share';
-// @ts-ignore - This is injected by wrangler at build time
-import manifestJSON from '__STATIC_CONTENT_MANIFEST';
-
-const assetManifest = JSON.parse(manifestJSON);
 
 export interface Env {
   DB: D1Database;
   R2_BUCKET: R2Bucket;
   ENVIRONMENT: string;
-  __STATIC_CONTENT: KVNamespace;
+  ASSETS: Fetcher;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -98,56 +93,28 @@ app.post('/share-target', async (c) => {
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', time: new Date().toISOString() }));
 
-// Static file serving for Workers Sites using kv-asset-handler
+// Static file serving using Workers Static Assets
 app.get('*', async (c) => {
-  try {
-    const event = {
-      request: c.req.raw,
-      waitUntil: (promise: Promise<any>) => c.executionCtx.waitUntil(promise),
-    };
-    
-    const options = {
-      ASSET_NAMESPACE: c.env.__STATIC_CONTENT,
-      ASSET_MANIFEST: assetManifest,
-    };
-
-    const page = await getAssetFromKV(event as any, options);
-    
-    // Clone the response to modify headers
-    const response = new Response(page.body, page);
-    response.headers.set('X-XSS-Protection', '1; mode=block');
-    response.headers.set('X-Content-Type-Options', 'nosniff');
-    
-    return response;
-  } catch (e) {
-    if (e instanceof NotFoundError) {
-      // SPA fallback: serve index.html for all non-asset routes
-      try {
-        const event = {
-          request: new Request(new URL('/index.html', c.req.url).toString(), c.req.raw),
-          waitUntil: (promise: Promise<any>) => c.executionCtx.waitUntil(promise),
-        };
-        
-        const options = {
-          ASSET_NAMESPACE: c.env.__STATIC_CONTENT,
-          ASSET_MANIFEST: assetManifest,
-        };
-        
-        const page = await getAssetFromKV(event as any, options);
-        return new Response(page.body, {
-          ...page,
-          headers: {
-            ...Object.fromEntries(page.headers),
-            'Content-Type': 'text/html; charset=utf-8',
-          },
-        });
-      } catch {
-        return c.text('Not Found', 404);
-      }
-    }
-    console.error('Static file error:', e);
-    return c.text('Internal Server Error', 500);
+  const url = new URL(c.req.url);
+  
+  // Try to fetch the requested asset
+  let response = await c.env.ASSETS.fetch(c.req.raw);
+  
+  // If asset not found and it's a navigation request, serve index.html (SPA fallback)
+  if (response.status === 404) {
+    const indexRequest = new Request(new URL('/index.html', url).toString(), {
+      method: 'GET',
+      headers: c.req.raw.headers,
+    });
+    response = await c.env.ASSETS.fetch(indexRequest);
   }
+  
+  // Clone and add security headers
+  const newResponse = new Response(response.body, response);
+  newResponse.headers.set('X-XSS-Protection', '1; mode=block');
+  newResponse.headers.set('X-Content-Type-Options', 'nosniff');
+  
+  return newResponse;
 });
 
 export default app;

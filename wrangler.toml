@@ -7,8 +7,10 @@ routes = [
   { pattern = "self.huny.dev", custom_domain = true }
 ]
 
-[site]
-bucket = "./dist"
+# Static Assets (최신 방식 - wrangler versions upload 지원)
+[assets]
+directory = "./dist"
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"

@@ -1,10 +1,10 @@
 {
   "name": "Self - Share to Yourself",
   "short_name": "Self",
-  "description": "A personal bookmark and sharing app for quick access to your saved content",
+  "description": "나만을 위한 개인 북마크 & 공유 앱. 링크, 텍스트, 이미지, 파일을 빠르게 저장하세요.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#0f172a",
   "theme_color": "#4f46e5",
   "orientation": "any",
   "icons": [
@@ -39,20 +39,49 @@
         {
           "name": "files",
           "accept": [
-            "text/plain",
             "text/*",
             "image/*",
             "video/*",
             "audio/*",
-            "application/*"
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/zip",
+            "application/x-rar-compressed",
+            "application/x-7z-compressed",
+            "application/json",
+            "application/xml",
+            "*/*"
           ]
         }
       ]
     }
   },
   "categories": ["productivity", "utilities"],
-  "lang": "en",
+  "lang": "ko",
   "dir": "ltr",
   "scope": "/",
-  "id": "self-app"
+  "id": "self-app",
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "새 항목 추가",
+      "short_name": "추가",
+      "description": "새로운 항목을 빠르게 추가합니다",
+      "url": "/?action=add",
+      "icons": [
+        {
+          "src": "/icons/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "handle_links": "preferred"
 }
