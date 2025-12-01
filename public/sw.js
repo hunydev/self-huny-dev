@@ -1,5 +1,5 @@
 // Service Worker for Self PWA
-const CACHE_NAME = 'self-v3';
+const CACHE_NAME = 'self-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -104,31 +104,49 @@ async function handleShareTarget(request) {
     const url = formData.get('url');
     const files = formData.getAll('files');
 
-    // Prepare share data
+    console.log('[SW] Share target received:', {
+      title,
+      text,
+      url,
+      filesCount: files ? files.length : 0,
+      fileDetails: files ? files.map(f => ({ name: f?.name, size: f?.size, type: f?.type })) : []
+    });
+
+    // IMPORTANT: Read file data FIRST before any other operation
+    // Once we read formData, the file streams are consumed
+    const fileBuffers = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        if (file && file.size > 0) {
+          try {
+            // Read the entire file into an ArrayBuffer immediately
+            const arrayBuffer = await file.arrayBuffer();
+            fileBuffers.push({
+              name: file.name,
+              type: file.type || 'application/octet-stream',
+              size: file.size,
+              buffer: arrayBuffer,
+            });
+            console.log('[SW] File buffered:', file.name, file.size, 'bytes');
+          } catch (fileErr) {
+            console.error('[SW] Error reading file:', file.name, fileErr);
+          }
+        }
+      }
+    }
+
+    // Prepare share data for offline queue (base64 encoded)
     const shareData = {
       title: title || '',
       text: text || '',
       url: url || '',
-      files: [],
+      files: fileBuffers.map(f => ({
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        data: arrayBufferToBase64(f.buffer),
+      })),
     };
-
-    // Process files - convert to base64 for storage
-    if (files && files.length > 0) {
-      for (const file of files) {
-        if (file && file.size > 0) {
-          const arrayBuffer = await file.arrayBuffer();
-          const base64 = btoa(
-            new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
-          shareData.files.push({
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            data: base64,
-          });
-        }
-      }
-    }
 
     // Try to send to server immediately
     try {
@@ -137,11 +155,15 @@ async function handleShareTarget(request) {
       if (text) serverFormData.append('text', text);
       if (url) serverFormData.append('url', url);
       
-      // Re-create files from the original formData
-      for (const file of files) {
-        if (file && file.size > 0) {
-          serverFormData.append('files', file);
-        }
+      // Create new File objects from the buffered data
+      for (const fileData of fileBuffers) {
+        const blob = new Blob([fileData.buffer], { type: fileData.type });
+        const newFile = new File([blob], fileData.name, { 
+          type: fileData.type,
+          lastModified: Date.now()
+        });
+        serverFormData.append('files', newFile);
+        console.log('[SW] Sending file to server:', newFile.name, newFile.size, 'bytes');
       }
 
       const response = await fetch('/share-target', {
@@ -149,28 +171,47 @@ async function handleShareTarget(request) {
         body: serverFormData,
       });
 
+      console.log('[SW] Server response:', response.status, response.statusText);
+
       if (response.ok || response.redirected) {
         // Success - redirect to home with success message
         return Response.redirect('/?shared=success', 303);
       }
-      throw new Error('Server returned error');
+      
+      // Try to get error details
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('[SW] Server error response:', errorText);
+      throw new Error(`Server returned ${response.status}: ${errorText}`);
     } catch (networkError) {
       // Offline or server error - queue for later
-      console.log('Network error, queuing share:', networkError);
+      console.log('[SW] Network error, queuing share:', networkError);
       await saveToShareQueue(shareData);
       
       // Still redirect to app with pending message
       return Response.redirect('/?shared=pending', 303);
     }
   } catch (error) {
-    console.error('Share target error:', error);
-    return Response.redirect('/?shared=error', 303);
+    console.error('[SW] Share target error:', error);
+    return Response.redirect('/?shared=error&reason=unknown', 303);
   }
+}
+
+// Helper function to convert ArrayBuffer to base64
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(binary);
 }
 
 // Process queued shares when back online
 async function processShareQueue() {
   const queuedShares = await getQueuedShares();
+  console.log('[SW] Processing share queue, items:', queuedShares.length);
   
   for (const share of queuedShares) {
     try {
@@ -181,15 +222,24 @@ async function processShareQueue() {
       
       // Convert base64 files back to blobs
       if (share.files && share.files.length > 0) {
+        console.log('[SW] Processing queued files:', share.files.length);
         for (const fileData of share.files) {
-          const binaryStr = atob(fileData.data);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
+          try {
+            const binaryStr = atob(fileData.data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: fileData.type });
+            const file = new File([blob], fileData.name, { 
+              type: fileData.type,
+              lastModified: Date.now()
+            });
+            formData.append('files', file);
+            console.log('[SW] Queued file recreated:', fileData.name, bytes.length, 'bytes');
+          } catch (fileErr) {
+            console.error('[SW] Error recreating file from queue:', fileData.name, fileErr);
           }
-          const blob = new Blob([bytes], { type: fileData.type });
-          const file = new File([blob], fileData.name, { type: fileData.type });
-          formData.append('files', file);
         }
       }
 
@@ -198,13 +248,16 @@ async function processShareQueue() {
         body: formData,
       });
 
+      console.log('[SW] Queue sync response:', response.status);
+
       if (response.ok || response.redirected) {
         await deleteFromQueue(share.id);
         // Notify client about successful sync
         notifyClients({ type: 'SHARE_SYNCED', id: share.id });
+        console.log('[SW] Queued share synced and removed:', share.id);
       }
     } catch (error) {
-      console.error('Failed to process queued share:', error);
+      console.error('[SW] Failed to process queued share:', error);
     }
   }
 }
