@@ -158,8 +158,7 @@ app.post('/share-target', async (c) => {
         return c.redirect('/?shared=success');
       } catch (error) {
         console.error('[Share Target] File upload failed:', error);
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        return c.redirect('/?shared=error&reason=' + encodeURIComponent(errorMsg));
+        return c.redirect('/?shared=error&reason=upload_failed');
       }
     }
   }
