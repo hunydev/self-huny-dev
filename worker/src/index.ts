@@ -95,16 +95,12 @@ app.post('/share-target', async (c) => {
       });
 
       try {
-        // Read file as ArrayBuffer first to ensure it's fully loaded
-        const arrayBuffer = await file.arrayBuffer();
-        console.log('[Share Target] File read into buffer, size:', arrayBuffer.byteLength);
-
-        if (arrayBuffer.byteLength === 0) {
-          console.error('[Share Target] File buffer is empty');
+        if (!file.size || file.size === 0) {
+          console.error('[Share Target] File size reported as 0');
           throw new Error('File buffer is empty');
         }
 
-        await c.env.R2_BUCKET.put(fileKey, arrayBuffer, {
+        await c.env.R2_BUCKET.put(fileKey, file.stream(), {
           httpMetadata: {
             contentType: file.type || 'application/octet-stream',
           },

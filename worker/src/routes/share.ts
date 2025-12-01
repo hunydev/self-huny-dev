@@ -62,16 +62,12 @@ shareRoutes.post('/', async (c) => {
         });
         
         try {
-          // Read file as ArrayBuffer for more reliable handling
-          const arrayBuffer = await file.arrayBuffer();
-          console.log('[API Share] File read into buffer, size:', arrayBuffer.byteLength);
-          
-          if (arrayBuffer.byteLength === 0) {
-            console.error('[API Share] File buffer is empty, skipping');
+          if (!file.size || file.size === 0) {
+            console.error('[API Share] File size reported as 0, skipping');
             continue;
           }
-          
-          await c.env.R2_BUCKET.put(fileKey, arrayBuffer, {
+
+          await c.env.R2_BUCKET.put(fileKey, file.stream(), {
             httpMetadata: {
               contentType: file.type || 'application/octet-stream',
             },
