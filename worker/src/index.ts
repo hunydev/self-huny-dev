@@ -5,6 +5,43 @@ import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/upload';
 import { shareRoutes } from './routes/share';
 
+// File upload validation constants
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const ALLOWED_FILE_TYPES = [
+  // Images
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'image/heic',
+  'image/heif',
+  // Videos
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-msvideo',
+  // Audio
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/webm',
+  // Documents
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+  // Archives
+  'application/zip',
+  'application/x-rar-compressed',
+  'application/gzip',
+];
+
 export interface Env {
   DB: D1Database;
   R2_BUCKET: R2Bucket;
@@ -64,6 +101,20 @@ app.post('/share-target', async (c) => {
 
     if (validFiles.length > 0) {
       const file = validFiles[0];
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        console.error('[Share Target] File too large:', file.size, 'bytes, max:', MAX_FILE_SIZE);
+        return c.redirect('/?shared=error&reason=file_too_large');
+      }
+
+      // Validate file type
+      const fileType = file.type || 'application/octet-stream';
+      if (!ALLOWED_FILE_TYPES.includes(fileType)) {
+        console.error('[Share Target] File type not allowed:', fileType);
+        return c.redirect('/?shared=error&reason=file_type_not_allowed');
+      }
+
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_') || 'unnamed';
       const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
       
