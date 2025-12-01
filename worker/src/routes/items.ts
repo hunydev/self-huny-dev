@@ -158,12 +158,29 @@ itemsRoutes.put('/:id', async (c) => {
     const body = await c.req.json();
     const { content, title, tags } = body;
 
-    // Update item
-    await c.env.DB.prepare(`
-      UPDATE items SET content = ?, title = ? WHERE id = ?
-    `).bind(content || '', title || null, id).run();
+    // Only update content/title if they are provided
+    if (content !== undefined || title !== undefined) {
+      const updates: string[] = [];
+      const params: any[] = [];
+      
+      if (content !== undefined) {
+        updates.push('content = ?');
+        params.push(content || '');
+      }
+      if (title !== undefined) {
+        updates.push('title = ?');
+        params.push(title || null);
+      }
+      
+      if (updates.length > 0) {
+        params.push(id);
+        await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ?`)
+          .bind(...params)
+          .run();
+      }
+    }
 
-    // Update tags
+    // Update tags if provided
     if (tags !== undefined) {
       // Remove existing tags
       await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id = ?').bind(id).run();

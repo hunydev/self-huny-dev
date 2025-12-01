@@ -176,6 +176,23 @@ export const deleteTag = async (id: string): Promise<void> => {
   }
 };
 
+// Update item tags
+export const updateItemTags = async (itemId: string, tagIds: string[]): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      tags: tagIds,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update item tags');
+  }
+};
+
 // Get file URL
 export const getFileUrl = (fileKey: string): string => {
   return `${API_BASE}/upload/${fileKey}`;

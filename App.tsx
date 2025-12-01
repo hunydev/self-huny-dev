@@ -3,6 +3,7 @@ import { Menu, CheckCircle, XCircle, Clock, WifiOff } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import InputArea from './components/InputArea';
 import Feed from './components/Feed';
+import ItemModal from './components/ItemModal';
 import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
 
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [shareStatus, setShareStatus] = useState<ShareStatus>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -143,6 +145,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateItemTags = async (itemId: string, tagIds: string[]) => {
+    try {
+      await db.updateItemTags(itemId, tagIds);
+      setItems(prev => prev.map(item => 
+        item.id === itemId ? { ...item, tags: tagIds } : item
+      ));
+      // Update the selected item if it's the one being edited
+      if (selectedItem?.id === itemId) {
+        setSelectedItem(prev => prev ? { ...prev, tags: tagIds } : null);
+      }
+    } catch (err) {
+      console.error("Failed to update item tags", err);
+    }
+  };
+
   const filteredItems = useMemo(() => {
     if (activeFilter === 'all') return items;
     return items.filter(item => item.type === activeFilter);
@@ -184,7 +201,7 @@ const App: React.FC = () => {
     const config = configs[shareStatus];
 
     return (
-      <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg ${config.bg} text-white flex items-center gap-2 animate-in`}>
+      <div className={`fixed top-4 left-1/2 z-50 px-4 py-3 rounded-xl shadow-lg ${config.bg} text-white flex items-center gap-2 animate-toast`}>
         {config.icon}
         <span className="font-medium text-sm">{config.text}</span>
       </div>
@@ -224,26 +241,40 @@ const App: React.FC = () => {
           <span className="ml-2 text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8 scroll-smooth">
-          <div className="max-w-7xl mx-auto space-y-8">
+        <div className="flex-1 overflow-y-auto scroll-smooth">
+          <div className="max-w-7xl mx-auto">
             
-            {/* Input Section */}
-            <div className="max-w-3xl mx-auto w-full">
-              <InputArea 
-                onSave={handleSaveItem} 
-                availableTags={tags} 
-              />
+            {/* Input Section - Sticky */}
+            <div className="sticky top-0 z-20 bg-slate-50 pt-4 lg:pt-8 pb-4 px-4 lg:px-8">
+              <div className="max-w-3xl mx-auto w-full">
+                <InputArea 
+                  onSave={handleSaveItem} 
+                  availableTags={tags} 
+                />
+              </div>
             </div>
 
             {/* Feed Section */}
-            <Feed 
-              items={filteredItems} 
-              tags={tags} 
-              onDelete={handleDeleteItem} 
-            />
+            <div className="px-4 lg:px-8 pb-4 lg:pb-8">
+              <Feed 
+                items={filteredItems} 
+                tags={tags} 
+                onDelete={handleDeleteItem}
+                onItemClick={setSelectedItem}
+              />
+            </div>
           </div>
         </div>
       </main>
+
+      {/* Item Modal */}
+      <ItemModal
+        item={selectedItem!}
+        tags={tags}
+        isOpen={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+        onUpdateTags={handleUpdateItemTags}
+      />
     </div>
   );
 };

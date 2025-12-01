@@ -7,9 +7,10 @@ interface FeedProps {
   items: Item[];
   tags: Tag[];
   onDelete: (id: string) => void;
+  onItemClick: (item: Item) => void;
 }
 
-const Feed: React.FC<FeedProps> = ({ items, tags, onDelete }) => {
+const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick }) => {
   // Group items by date
   const groupedItems = items.reduce((groups, item) => {
     const dateKey = format(item.createdAt, 'yyyy-MM-dd');
@@ -47,7 +48,7 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete }) => {
     <div className="space-y-8 pb-20">
       {sortedDates.map(dateKey => (
         <div key={dateKey}>
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1 sticky top-0 bg-slate-50/95 backdrop-blur-sm py-2 z-10">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1 py-2">
             {getDateLabel(dateKey)}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -57,6 +58,7 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete }) => {
                 item={item} 
                 tags={tags} 
                 onDelete={onDelete}
+                onClick={() => onItemClick(item)}
               />
             ))}
           </div>

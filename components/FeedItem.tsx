@@ -8,9 +8,10 @@ interface FeedItemProps {
   item: Item;
   tags: Tag[];
   onDelete: (id: string) => void;
+  onClick: () => void;
 }
 
-const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete }) => {
+const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick }) => {
 
   // Get file URL from R2
   const fileUrl = useMemo(() => {
@@ -24,13 +25,15 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete }) => {
     return tags.filter(t => item.tags.includes(t.id));
   }, [tags, item.tags]);
 
-  const handleCopy = () => {
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (item.type === ItemType.LINK || item.type === ItemType.TEXT) {
       navigator.clipboard.writeText(item.content);
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (fileUrl) {
       const a = document.createElement('a');
       a.href = fileUrl;
@@ -38,6 +41,11 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete }) => {
       a.target = '_blank';
       a.click();
     }
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(item.id);
   };
 
   const renderThumbnail = () => {
@@ -99,7 +107,10 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete }) => {
   };
 
   return (
-    <div className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+    <div 
+      className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer"
+      onClick={onClick}
+    >
       {/* Header / Meta */}
       {(item.title || itemTags.length > 0) && (
         <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-2">
@@ -137,7 +148,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete }) => {
               <Copy size={14} />
             </button>
           )}
-          <button onClick={() => onDelete(item.id)} className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded" title="Delete">
+          <button onClick={handleDelete} className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded" title="Delete">
             <Trash2 size={14} />
           </button>
         </div>
