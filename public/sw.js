@@ -192,7 +192,7 @@ async function handleShareTarget(request) {
     }
   } catch (error) {
     console.error('[SW] Share target error:', error);
-    return Response.redirect('/?shared=error&reason=' + encodeURIComponent(error.message), 303);
+    return Response.redirect('/?shared=error&reason=unknown', 303);
   }
 }
 
