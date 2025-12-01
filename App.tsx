@@ -5,13 +5,17 @@ import InputArea, { InputAreaHandle } from './components/InputArea';
 import Feed from './components/Feed';
 import ItemModal from './components/ItemModal';
 import SettingsModal from './components/SettingsModal';
+import LoginScreen from './components/LoginScreen';
+import UserMenu from './components/UserMenu';
 import { SettingsProvider } from './contexts/SettingsContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
 
 type ShareStatus = 'success' | 'error' | 'pending' | null;
 
-const AppContent: React.FC = () => {
+// Authenticated app content
+const AuthenticatedContent: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [activeFilter, setActiveFilter] = useState<ItemType | 'all'>('all');
@@ -295,12 +299,20 @@ const AppContent: React.FC = () => {
 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
         {/* Mobile Header */}
-        <div className="lg:hidden h-16 flex items-center px-4 bg-white border-b border-slate-200 shrink-0">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600">
-            <Menu size={24} />
-          </button>
-          <span className="ml-2 font-bold text-slate-800">Self.</span>
-          <span className="ml-2 text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
+        <div className="lg:hidden h-16 flex items-center justify-between px-4 bg-white border-b border-slate-200 shrink-0">
+          <div className="flex items-center">
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600">
+              <Menu size={24} />
+            </button>
+            <span className="ml-2 font-bold text-slate-800">Self.</span>
+            <span className="ml-2 text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
+          </div>
+          <UserMenu />
+        </div>
+
+        {/* Desktop Header with User Menu */}
+        <div className="hidden lg:flex h-14 items-center justify-end px-6 bg-white border-b border-slate-200 shrink-0">
+          <UserMenu />
         </div>
 
         <div className="flex-1 overflow-y-auto scroll-smooth">
@@ -377,11 +389,37 @@ const AppContent: React.FC = () => {
   );
 };
 
+// App content wrapper that handles auth state
+const AppContent: React.FC = () => {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
+
+  return <AuthenticatedContent />;
+};
+
 const App: React.FC = () => {
   return (
-    <SettingsProvider>
-      <AppContent />
-    </SettingsProvider>
+    <AuthProvider>
+      <SettingsProvider>
+        <AppContent />
+      </SettingsProvider>
+    </AuthProvider>
   );
 };
 
