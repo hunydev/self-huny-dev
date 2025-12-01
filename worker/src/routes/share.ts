@@ -81,7 +81,7 @@ shareRoutes.post('/', async (c) => {
           await c.env.DB.prepare(`
             INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(id, type, '', fileKey, file.name?.trim() || 'unnamed', file.size, file.type || 'application/octet-stream', title || null, now).run();
+          `).bind(id, type, '', fileKey, file.name?.trim() || 'unnamed', bytes, file.type || 'application/octet-stream', title || null, now).run();
 
           console.log('[API Share] DB record created, id:', id);
 
@@ -90,7 +90,7 @@ shareRoutes.post('/', async (c) => {
             type,
             fileKey,
             fileName: file.name,
-            fileSize: file.size,
+            fileSize: bytes,
             mimeType: file.type,
             createdAt: now,
           });
