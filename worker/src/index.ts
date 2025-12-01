@@ -207,37 +207,49 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
   console.log('[Share Target Direct] Content-Type:', contentType);
   console.log('[Share Target Direct] Content-Length:', contentLength);
   
-  // Clone the request to preserve the body for potential retry
-  const clonedRequest = request.clone();
+  // Read the raw body ONCE - this is the only read we'll do
+  const rawBody = await request.arrayBuffer();
+  console.log('[Share Target Direct] Raw body size:', rawBody.byteLength);
   
-  let formData: FormData;
+  // Try standard formData parsing first
   try {
-    // First, try to read raw body for debugging
-    const rawBody = await request.arrayBuffer();
-    console.log('[Share Target Direct] Raw body size:', rawBody.byteLength);
+    // Create a new Request with the raw body
+    const freshRequest = new Request(request.url, {
+      method: 'POST',
+      headers: request.headers,
+      body: rawBody,
+    });
     
-    // Check if body is complete (ends with boundary)
-    const bodyText = new TextDecoder().decode(rawBody.slice(-200));
-    console.log('[Share Target Direct] Body end (last 200 chars):', bodyText);
-    
-    // Now parse formData from the cloned request
-    formData = await clonedRequest.formData();
+    const formData = await freshRequest.formData();
+    console.log('[Share Target Direct] FormData parsed successfully');
+    return await processFormData(formData, request.url, env);
   } catch (parseError) {
-    console.error('[Share Target Direct] Failed to parse formData:', parseError);
-    
-    // Try to get more debug info
-    try {
-      const debugBody = await request.clone().text();
-      console.log('[Share Target Direct] Debug body length:', debugBody.length);
-      console.log('[Share Target Direct] Debug body start:', debugBody.substring(0, 500));
-      console.log('[Share Target Direct] Debug body end:', debugBody.substring(debugBody.length - 200));
-    } catch (e) {
-      console.log('[Share Target Direct] Could not read debug body');
-    }
-    
-    return Response.redirect(new URL('/?shared=error&reason=parse_failed', request.url).toString(), 303);
+    console.error('[Share Target Direct] Standard formData parsing failed:', parseError);
   }
+  
+  // Fallback: try manual multipart parsing with the SAME rawBody
+  try {
+    console.log('[Share Target Direct] Trying manual multipart parsing...');
+    const result = parseMultipartManually(rawBody, contentType);
+    if (result && (result.file || result.text || result.url || result.title)) {
+      console.log('[Share Target Direct] Manual parsing succeeded:', {
+        hasFile: !!result.file,
+        hasText: !!result.text,
+        hasUrl: !!result.url,
+        hasTitle: !!result.title,
+      });
+      return await processShareData(result, request.url, env);
+    }
+    console.log('[Share Target Direct] Manual parsing returned no useful data');
+  } catch (manualError) {
+    console.error('[Share Target Direct] Manual parsing also failed:', manualError);
+  }
+  
+  return Response.redirect(new URL('/?shared=error&reason=parse_failed', request.url).toString(), 303);
+}
 
+// Process parsed formData
+async function processFormData(formData: FormData, requestUrl: string, env: Env): Promise<Response> {
   const title = formData.get('title') as string;
   const text = formData.get('text') as string;
   const urlParam = formData.get('url') as string;
@@ -306,10 +318,10 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
       `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, now).run();
 
       console.log('[Share Target Direct] DB record created, id:', id);
-      return Response.redirect(new URL('/?shared=success', request.url).toString(), 303);
+      return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] File upload failed:', error);
-      return Response.redirect(new URL('/?shared=error&reason=upload_failed', request.url).toString(), 303);
+      return Response.redirect(new URL('/?shared=error&reason=upload_failed', requestUrl).toString(), 303);
     }
   }
 
@@ -330,13 +342,174 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
       `).bind(id, type, content, title || null, now).run();
 
       console.log('[Share Target Direct] Text/link saved, id:', id);
-      return Response.redirect(new URL('/?shared=success', request.url).toString(), 303);
+      return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] Text/link save failed:', error);
-      return Response.redirect(new URL('/?shared=error', request.url).toString(), 303);
+      return Response.redirect(new URL('/?shared=error', requestUrl).toString(), 303);
     }
   }
 
   console.log('[Share Target Direct] No content to save');
-  return Response.redirect(new URL('/', request.url).toString(), 303);
+  return Response.redirect(new URL('/', requestUrl).toString(), 303);
+}
+
+// Manual multipart parser for edge cases
+interface ParsedMultipart {
+  title?: string;
+  text?: string;
+  url?: string;
+  file?: { name: string; type: string; data: Uint8Array };
+}
+
+function parseMultipartManually(body: ArrayBuffer, contentType: string): ParsedMultipart | null {
+  const boundaryMatch = contentType.match(/boundary=(.+?)(?:;|$)/);
+  if (!boundaryMatch) {
+    console.log('[Manual Parser] No boundary found in content-type');
+    return null;
+  }
+  
+  const boundary = boundaryMatch[1].trim();
+  console.log('[Manual Parser] Boundary:', boundary);
+  
+  const bodyBytes = new Uint8Array(body);
+  const boundaryBytes = new TextEncoder().encode('--' + boundary);
+  const result: ParsedMultipart = {};
+  
+  // Find all boundary positions
+  const boundaryPositions: number[] = [];
+  for (let i = 0; i <= bodyBytes.length - boundaryBytes.length; i++) {
+    let match = true;
+    for (let j = 0; j < boundaryBytes.length; j++) {
+      if (bodyBytes[i + j] !== boundaryBytes[j]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      boundaryPositions.push(i);
+    }
+  }
+  
+  console.log('[Manual Parser] Found', boundaryPositions.length, 'boundary positions');
+  
+  // Parse each part
+  for (let i = 0; i < boundaryPositions.length - 1; i++) {
+    const partStart = boundaryPositions[i] + boundaryBytes.length;
+    const partEnd = boundaryPositions[i + 1];
+    
+    // Skip \r\n after boundary
+    let contentStart = partStart;
+    if (bodyBytes[contentStart] === 0x0D && bodyBytes[contentStart + 1] === 0x0A) {
+      contentStart += 2;
+    }
+    
+    // Find header end (double CRLF)
+    let headerEnd = -1;
+    for (let j = contentStart; j < partEnd - 3; j++) {
+      if (bodyBytes[j] === 0x0D && bodyBytes[j + 1] === 0x0A && 
+          bodyBytes[j + 2] === 0x0D && bodyBytes[j + 3] === 0x0A) {
+        headerEnd = j;
+        break;
+      }
+    }
+    
+    if (headerEnd === -1) continue;
+    
+    const headerBytes = bodyBytes.slice(contentStart, headerEnd);
+    const headers = new TextDecoder().decode(headerBytes);
+    
+    // Content starts after double CRLF
+    const dataStart = headerEnd + 4;
+    // Content ends before trailing CRLF before next boundary
+    let dataEnd = partEnd;
+    if (bodyBytes[dataEnd - 2] === 0x0D && bodyBytes[dataEnd - 1] === 0x0A) {
+      dataEnd -= 2;
+    }
+    
+    const nameMatch = headers.match(/name="([^"]+)"/);
+    if (!nameMatch) continue;
+    
+    const name = nameMatch[1];
+    const filenameMatch = headers.match(/filename="([^"]+)"/);
+    const contentTypeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/i);
+    
+    if (filenameMatch) {
+      // This is a file - extract binary data
+      const filename = filenameMatch[1];
+      const fileContentType = contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream';
+      const fileData = bodyBytes.slice(dataStart, dataEnd);
+      
+      console.log('[Manual Parser] Found file:', filename, 'size:', fileData.length, 'type:', fileContentType);
+      
+      result.file = {
+        name: filename,
+        type: fileContentType,
+        data: fileData
+      };
+    } else {
+      // Text field
+      const textData = bodyBytes.slice(dataStart, dataEnd);
+      const value = new TextDecoder().decode(textData).trim();
+      
+      console.log('[Manual Parser] Found field:', name, '=', value.substring(0, 100));
+      
+      if (name === 'title') result.title = value;
+      else if (name === 'text') result.text = value;
+      else if (name === 'url') result.url = value;
+    }
+  }
+  
+  return result;
+}
+
+// Process manually parsed data
+async function processShareData(data: ParsedMultipart, requestUrl: string, env: Env): Promise<Response> {
+  // Handle file if present
+  if (data.file && data.file.data.byteLength > 0) {
+    const originalName = data.file.name || 'unnamed';
+    const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
+    
+    try {
+      await env.R2_BUCKET.put(fileKey, data.file.data, {
+        httpMetadata: {
+          contentType: data.file.type,
+        },
+      });
+      
+      const type = data.file.type?.startsWith('image/') ? 'image' 
+        : data.file.type?.startsWith('video/') ? 'video' 
+        : 'file';
+
+      const id = crypto.randomUUID();
+      const now = Date.now();
+
+      await env.DB.prepare(`
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, type, '', fileKey, originalName, data.file.data.byteLength, data.file.type, data.title || null, now).run();
+
+      return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
+    } catch (error) {
+      console.error('[Share Target Direct] Manual file upload failed:', error);
+      return Response.redirect(new URL('/?shared=error&reason=upload_failed', requestUrl).toString(), 303);
+    }
+  }
+
+  // Handle text/link
+  const content = data.url || data.text || data.title || '';
+  if (content) {
+    const type = /^https?:\/\//i.test(content.trim()) ? 'link' : 'text';
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    
+    await env.DB.prepare(`
+      INSERT INTO items (id, type, content, title, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(id, type, content, data.title || null, now).run();
+
+    return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
+  }
+
+  return Response.redirect(new URL('/', requestUrl).toString(), 303);
 }
