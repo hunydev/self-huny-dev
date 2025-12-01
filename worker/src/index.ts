@@ -4,6 +4,7 @@ import { itemsRoutes } from './routes/items';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/upload';
 import { shareRoutes } from './routes/share';
+import { uploadFileToR2 } from './utils/uploadFile';
 
 export interface Env {
   DB: D1Database;
@@ -95,17 +96,13 @@ app.post('/share-target', async (c) => {
       });
 
       try {
-        if (!file.size || file.size === 0) {
-          console.error('[Share Target] File size reported as 0');
-          throw new Error('File buffer is empty');
-        }
-
-        await c.env.R2_BUCKET.put(fileKey, file.stream(), {
-          httpMetadata: {
-            contentType: file.type || 'application/octet-stream',
-          },
-        });
-        console.log('[Share Target] File uploaded to R2');
+        const { bytes, strategy } = await uploadFileToR2(
+          c.env.R2_BUCKET,
+          file,
+          fileKey,
+          '[Share Target]'
+        );
+        console.log('[Share Target] File uploaded to R2', { strategy, bytes });
 
         const type = file.type?.startsWith('image/') ? 'image' 
           : file.type?.startsWith('video/') ? 'video' 
