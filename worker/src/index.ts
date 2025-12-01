@@ -31,13 +31,16 @@ app.route('/api/share', shareRoutes);
 // PWA Share Target - handles POST from share intent
 app.post('/share-target', async (c) => {
   console.log('[Share Target] Received request');
+  console.log('[Share Target] Content-Type:', c.req.header('content-type'));
   
   let formData: FormData;
   try {
-    formData = await c.req.formData();
+    // Use the raw request to parse formData instead of Hono's wrapper
+    const rawRequest = c.req.raw;
+    formData = await rawRequest.formData();
   } catch (parseError) {
     console.error('[Share Target] Failed to parse formData:', parseError);
-    return c.redirect('/?shared=error&reason=parse_failed');
+    return c.redirect('/?shared=error&reason=parse_failed', 303);
   }
 
   const title = formData.get('title') as string;
@@ -181,4 +184,133 @@ app.get('*', async (c) => {
   return newResponse;
 });
 
-export default app;
+// Export with custom fetch handler to intercept share-target before Hono
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    
+    // Handle share-target directly, before Hono processes the request
+    if (url.pathname === '/share-target' && request.method === 'POST') {
+      return handleShareTarget(request, env);
+    }
+    
+    // For all other requests, use Hono app
+    return app.fetch(request, env, ctx);
+  },
+};
+
+// Direct share-target handler (outside Hono to avoid body consumption issues)
+async function handleShareTarget(request: Request, env: Env): Promise<Response> {
+  console.log('[Share Target Direct] Received request');
+  console.log('[Share Target Direct] Content-Type:', request.headers.get('content-type'));
+  
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch (parseError) {
+    console.error('[Share Target Direct] Failed to parse formData:', parseError);
+    return Response.redirect(new URL('/?shared=error&reason=parse_failed', request.url).toString(), 303);
+  }
+
+  const title = formData.get('title') as string;
+  const text = formData.get('text') as string;
+  const urlParam = formData.get('url') as string;
+  
+  // Collect ALL files from formData
+  const allFiles: File[] = [];
+  const formDataEntries: { key: string; type: string; isFile: boolean; size: number | null }[] = [];
+  
+  for (const [key, value] of formData.entries()) {
+    formDataEntries.push({ 
+      key, 
+      type: typeof value, 
+      isFile: value instanceof File, 
+      size: value instanceof File ? value.size : null 
+    });
+    if (value instanceof File && value.size > 0) {
+      allFiles.push(value);
+    }
+  }
+
+  console.log('[Share Target Direct] Parsed data:', {
+    title,
+    text,
+    url: urlParam,
+    formDataEntries,
+    filesCount: allFiles.length,
+  });
+
+  // Handle file uploads
+  if (allFiles.length > 0) {
+    const file = allFiles[0];
+    const originalName = typeof file.name === 'string' && file.name.trim().length > 0
+      ? file.name.trim()
+      : 'unnamed';
+    const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
+    
+    console.log('[Share Target Direct] Processing file:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      fileKey
+    });
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      
+      await env.R2_BUCKET.put(fileKey, arrayBuffer, {
+        httpMetadata: {
+          contentType: file.type || 'application/octet-stream',
+        },
+      });
+      
+      console.log('[Share Target Direct] File uploaded to R2, bytes:', arrayBuffer.byteLength);
+
+      const type = file.type?.startsWith('image/') ? 'image' 
+        : file.type?.startsWith('video/') ? 'video' 
+        : 'file';
+
+      const id = crypto.randomUUID();
+      const now = Date.now();
+
+      await env.DB.prepare(`
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, now).run();
+
+      console.log('[Share Target Direct] DB record created, id:', id);
+      return Response.redirect(new URL('/?shared=success', request.url).toString(), 303);
+    } catch (error) {
+      console.error('[Share Target Direct] File upload failed:', error);
+      return Response.redirect(new URL('/?shared=error&reason=upload_failed', request.url).toString(), 303);
+    }
+  }
+
+  // Handle text/link share
+  const content = urlParam || text || title || '';
+  const type = /^https?:\/\//i.test(content.trim()) ? 'link' : 'text';
+  
+  console.log('[Share Target Direct] Processing as text/link:', { content, type });
+
+  if (content) {
+    try {
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      
+      await env.DB.prepare(`
+        INSERT INTO items (id, type, content, title, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(id, type, content, title || null, now).run();
+
+      console.log('[Share Target Direct] Text/link saved, id:', id);
+      return Response.redirect(new URL('/?shared=success', request.url).toString(), 303);
+    } catch (error) {
+      console.error('[Share Target Direct] Text/link save failed:', error);
+      return Response.redirect(new URL('/?shared=error', request.url).toString(), 303);
+    }
+  }
+
+  console.log('[Share Target Direct] No content to save');
+  return Response.redirect(new URL('/', request.url).toString(), 303);
+}
