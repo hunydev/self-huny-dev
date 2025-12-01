@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { uploadFileToR2 } from '../utils/uploadFile';
 
 export const shareRoutes = new Hono<{ Bindings: Env }>();
 
@@ -62,17 +63,13 @@ shareRoutes.post('/', async (c) => {
         });
         
         try {
-          if (!file.size || file.size === 0) {
-            console.error('[API Share] File size reported as 0, skipping');
-            continue;
-          }
-
-          await c.env.R2_BUCKET.put(fileKey, file.stream(), {
-            httpMetadata: {
-              contentType: file.type || 'application/octet-stream',
-            },
-          });
-          console.log('[API Share] File uploaded to R2');
+          const { bytes, strategy } = await uploadFileToR2(
+            c.env.R2_BUCKET,
+            file,
+            fileKey,
+            '[API Share]'
+          );
+          console.log('[API Share] File uploaded to R2', { strategy, bytes });
 
           const type = file.type?.startsWith('image/') ? 'image' 
             : file.type?.startsWith('video/') ? 'video' 
