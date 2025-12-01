@@ -1,5 +1,5 @@
 // Service Worker for Self PWA
-const CACHE_NAME = 'self-v4';
+const CACHE_NAME = 'self-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -149,6 +149,7 @@ async function handleShareTarget(request) {
     };
 
     // Try to send to server immediately
+    // IMPORTANT: Use /api/share instead of /share-target to avoid service worker intercepting again
     try {
       const serverFormData = new FormData();
       if (title) serverFormData.append('title', title);
@@ -166,14 +167,14 @@ async function handleShareTarget(request) {
         console.log('[SW] Sending file to server:', newFile.name, newFile.size, 'bytes');
       }
 
-      const response = await fetch('/share-target', {
+      const response = await fetch('/api/share', {
         method: 'POST',
         body: serverFormData,
       });
 
       console.log('[SW] Server response:', response.status, response.statusText);
 
-      if (response.ok || response.redirected) {
+      if (response.ok) {
         // Success - redirect to home with success message
         return Response.redirect('/?shared=success', 303);
       }
@@ -243,14 +244,15 @@ async function processShareQueue() {
         }
       }
 
-      const response = await fetch('/share-target', {
+      // Use /api/share to avoid service worker intercepting the request
+      const response = await fetch('/api/share', {
         method: 'POST',
         body: formData,
       });
 
       console.log('[SW] Queue sync response:', response.status);
 
-      if (response.ok || response.redirected) {
+      if (response.ok) {
         await deleteFromQueue(share.id);
         // Notify client about successful sync
         notifyClients({ type: 'SHARE_SYNCED', id: share.id });
