@@ -19,6 +19,8 @@ interface AuthContextType {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   accessToken: string | null;
+  authError: string | null;
+  clearAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -28,6 +30,7 @@ let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -142,7 +145,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const handleOAuthCallback = async () => {
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
+      const error = params.get('error');
+      const errorDescription = params.get('error_description');
       const isCallbackPage = window.location.pathname === '/auth/callback';
+
+      // Handle OAuth error response
+      if (error && isCallbackPage) {
+        const errorMsg = errorDescription 
+          ? decodeURIComponent(errorDescription) 
+          : error === 'access_denied' 
+            ? '접근 권한이 없습니다' 
+            : '인증에 실패했습니다';
+        setAuthError(errorMsg);
+        window.history.replaceState({}, document.title, '/');
+        setIsLoading(false);
+        return;
+      }
 
       if (code && isCallbackPage) {
         try {
@@ -162,8 +180,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           window.history.replaceState({}, document.title, '/');
         } catch (error) {
           console.error('OAuth callback failed:', error);
-          // Redirect to home with error
-          window.history.replaceState({}, document.title, '/?auth_error=1');
+          setAuthError(error instanceof Error ? error.message : '인증에 실패했습니다');
+          window.history.replaceState({}, document.title, '/');
         } finally {
           setIsLoading(false);
         }
@@ -187,6 +205,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAccessToken(null);
   }, [accessToken]);
 
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -196,6 +218,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         logout,
         accessToken,
+        authError,
+        clearAuthError,
       }}
     >
       {children}

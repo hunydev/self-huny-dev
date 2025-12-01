@@ -2,9 +2,13 @@ import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const LoginScreen: React.FC = () => {
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, authError, clearAuthError } = useAuth();
 
   const handleLogin = async () => {
+    // Clear any previous error before attempting login
+    if (authError) {
+      clearAuthError();
+    }
     try {
       await login();
     } catch (error) {
@@ -64,10 +68,25 @@ const LoginScreen: React.FC = () => {
         </div>
 
         {/* Auth Error Message */}
-        {new URLSearchParams(window.location.search).get('auth_error') && (
-          <div className="mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-center">
-            <p className="font-medium">인증에 실패했습니다</p>
-            <p className="text-sm mt-1">다시 시도해주세요.</p>
+        {authError && (
+          <div className="mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-medium">인증에 실패했습니다</p>
+                <p className="text-sm mt-1 text-red-300">{authError}</p>
+              </div>
+              <button
+                onClick={clearAuthError}
+                className="p-1 hover:bg-red-500/30 rounded transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         )}
       </div>

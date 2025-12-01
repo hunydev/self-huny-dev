@@ -60,6 +60,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Skip non-http(s) schemes (e.g., chrome-extension)
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
   // Only handle GET requests for static assets
   event.respondWith(
     fetch(request)
