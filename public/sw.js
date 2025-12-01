@@ -1,5 +1,5 @@
 // Service Worker for Self PWA
-const CACHE_NAME = 'self-v5';
+const CACHE_NAME = 'self-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -102,35 +102,46 @@ async function handleShareTarget(request) {
     const title = formData.get('title');
     const text = formData.get('text');
     const url = formData.get('url');
-    const files = formData.getAll('files');
+    
+    // Collect ALL files from formData - Android may use different field names
+    // Common field names: files, file, media, image, video, audio, attachment
+    const allFiles = [];
+    const formDataEntries = [];
+    
+    // Iterate through all formData entries to find files
+    for (const [key, value] of formData.entries()) {
+      formDataEntries.push({ key, type: typeof value, isFile: value instanceof File, size: value instanceof File ? value.size : null });
+      if (value instanceof File && value.size > 0) {
+        allFiles.push(value);
+      }
+    }
 
     console.log('[SW] Share target received:', {
       title,
       text,
       url,
-      filesCount: files ? files.length : 0,
-      fileDetails: files ? files.map(f => ({ name: f?.name, size: f?.size, type: f?.type })) : []
+      formDataEntries,
+      filesCount: allFiles.length,
+      fileDetails: allFiles.map(f => ({ name: f?.name, size: f?.size, type: f?.type }))
     });
 
     // IMPORTANT: Read file data FIRST before any other operation
     // Once we read formData, the file streams are consumed
     const fileBuffers = [];
-    if (files && files.length > 0) {
-      for (const file of files) {
-        if (file && file.size > 0) {
-          try {
-            // Read the entire file into an ArrayBuffer immediately
-            const arrayBuffer = await file.arrayBuffer();
-            fileBuffers.push({
-              name: file.name,
-              type: file.type || 'application/octet-stream',
-              size: file.size,
-              buffer: arrayBuffer,
-            });
-            console.log('[SW] File buffered:', file.name, file.size, 'bytes');
-          } catch (fileErr) {
-            console.error('[SW] Error reading file:', file.name, fileErr);
-          }
+    if (allFiles.length > 0) {
+      for (const file of allFiles) {
+        try {
+          // Read the entire file into an ArrayBuffer immediately
+          const arrayBuffer = await file.arrayBuffer();
+          fileBuffers.push({
+            name: file.name || 'unnamed',
+            type: file.type || 'application/octet-stream',
+            size: file.size,
+            buffer: arrayBuffer,
+          });
+          console.log('[SW] File buffered:', file.name, file.size, 'bytes');
+        } catch (fileErr) {
+          console.error('[SW] Error reading file:', file.name, fileErr);
         }
       }
     }

@@ -11,14 +11,32 @@ shareRoutes.post('/', async (c) => {
     let title: string | null = null;
     let text: string | null = null;
     let url: string | null = null;
-    let files: File[] = [];
+    let allFiles: File[] = [];
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await c.req.formData();
       title = formData.get('title') as string;
       text = formData.get('text') as string;
       url = formData.get('url') as string;
-      files = formData.getAll('files') as File[];
+      
+      // Collect ALL files from formData - Android may use different field names
+      // Common field names: files, file, media, image, video, audio, attachment
+      const formDataEntries: { key: string; type: string; isFile: boolean; size: number | null }[] = [];
+      
+      // Iterate through all formData entries to find files
+      for (const [key, value] of formData.entries()) {
+        formDataEntries.push({ 
+          key, 
+          type: typeof value, 
+          isFile: value instanceof File, 
+          size: value instanceof File ? value.size : null 
+        });
+        if (value instanceof File && value.size > 0) {
+          allFiles.push(value);
+        }
+      }
+      
+      console.log('[API Share] FormData entries:', formDataEntries);
     } else if (contentType.includes('application/json')) {
       const body = await c.req.json();
       title = body.title;
@@ -27,14 +45,12 @@ shareRoutes.post('/', async (c) => {
     }
 
     // Handle file uploads first
-    if (files && files.length > 0) {
+    if (allFiles.length > 0) {
       const uploadedItems = [];
       
-      // Filter out invalid files (empty or null)
-      const validFiles = files.filter(f => f && f.size > 0);
-      console.log('[API Share] Processing files:', validFiles.length, 'valid files out of', files.length);
+      console.log('[API Share] Processing files:', allFiles.length, 'valid files');
 
-      for (const file of validFiles) {
+      for (const file of allFiles) {
         const sanitizedName = file.name?.replace(/[^a-zA-Z0-9.-]/g, '_') || 'unnamed';
         const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
         

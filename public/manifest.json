@@ -48,12 +48,17 @@
       "url": "url",
       "files": [
         {
+          "name": "media",
+          "accept": [
+            "image/*",
+            "video/*",
+            "audio/*"
+          ]
+        },
+        {
           "name": "files",
           "accept": [
             "text/*",
-            "image/*",
-            "video/*",
-            "audio/*",
             "application/pdf",
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -66,7 +71,7 @@
             "application/x-7z-compressed",
             "application/json",
             "application/xml",
-            "*/*"
+            "application/octet-stream"
           ]
         }
       ]

@@ -42,28 +42,45 @@ app.post('/share-target', async (c) => {
   const title = formData.get('title') as string;
   const text = formData.get('text') as string;
   const url = formData.get('url') as string;
-  const files = formData.getAll('files') as File[];
+  
+  // Collect ALL files from formData - Android may use different field names
+  // Common field names: files, file, media, image, video, audio, attachment
+  const allFiles: File[] = [];
+  const formDataEntries: { key: string; type: string; isFile: boolean; size: number | null }[] = [];
+  
+  // Iterate through all formData entries to find files
+  for (const [key, value] of formData.entries()) {
+    formDataEntries.push({ 
+      key, 
+      type: typeof value, 
+      isFile: value instanceof File, 
+      size: value instanceof File ? value.size : null 
+    });
+    if (value instanceof File && value.size > 0) {
+      allFiles.push(value);
+    }
+  }
 
   console.log('[Share Target] Parsed data:', {
     title,
     text,
     url,
-    filesCount: files?.length || 0,
-    fileDetails: files?.map(f => ({ 
+    formDataEntries,
+    filesCount: allFiles.length,
+    fileDetails: allFiles.map(f => ({ 
       name: f?.name, 
       size: f?.size, 
-      type: f?.type,
-      isFile: f instanceof File
-    })) || []
+      type: f?.type
+    }))
   });
 
   // Handle file uploads first
-  if (files && files.length > 0) {
-    const validFiles = files.filter(f => f && f.size > 0);
-    console.log('[Share Target] Valid files count:', validFiles.length);
+  if (allFiles.length > 0) {
+    console.log('[Share Target] Valid files count:', allFiles.length);
 
-    if (validFiles.length > 0) {
-      const file = validFiles[0];
+    // Process first valid file
+    const file = allFiles[0];
+    if (file) {
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_') || 'unnamed';
       const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
       
