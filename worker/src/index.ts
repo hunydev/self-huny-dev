@@ -29,40 +29,87 @@ app.route('/api/share', shareRoutes);
 
 // PWA Share Target - handles POST from share intent
 app.post('/share-target', async (c) => {
-  const formData = await c.req.formData();
+  console.log('[Share Target] Received request');
+  
+  let formData: FormData;
+  try {
+    formData = await c.req.formData();
+  } catch (parseError) {
+    console.error('[Share Target] Failed to parse formData:', parseError);
+    return c.redirect('/?shared=error&reason=parse_failed');
+  }
+
   const title = formData.get('title') as string;
   const text = formData.get('text') as string;
   const url = formData.get('url') as string;
   const files = formData.getAll('files') as File[];
 
+  console.log('[Share Target] Parsed data:', {
+    title,
+    text,
+    url,
+    filesCount: files?.length || 0,
+    fileDetails: files?.map(f => ({ 
+      name: f?.name, 
+      size: f?.size, 
+      type: f?.type,
+      isFile: f instanceof File
+    })) || []
+  });
+
   // Handle file uploads first
   if (files && files.length > 0) {
-    const file = files[0];
-    const fileKey = `${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    
-    try {
-      await c.env.R2_BUCKET.put(fileKey, file.stream(), {
-        httpMetadata: {
-          contentType: file.type,
-        },
+    const validFiles = files.filter(f => f && f.size > 0);
+    console.log('[Share Target] Valid files count:', validFiles.length);
+
+    if (validFiles.length > 0) {
+      const file = validFiles[0];
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_') || 'unnamed';
+      const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
+      
+      console.log('[Share Target] Processing file:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        fileKey
       });
 
-      const type = file.type.startsWith('image/') ? 'image' 
-        : file.type.startsWith('video/') ? 'video' 
-        : 'file';
+      try {
+        // Read file as ArrayBuffer first to ensure it's fully loaded
+        const arrayBuffer = await file.arrayBuffer();
+        console.log('[Share Target] File read into buffer, size:', arrayBuffer.byteLength);
 
-      const id = crypto.randomUUID();
-      const now = Date.now();
+        if (arrayBuffer.byteLength === 0) {
+          console.error('[Share Target] File buffer is empty');
+          throw new Error('File buffer is empty');
+        }
 
-      await c.env.DB.prepare(`
-        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(id, type, '', fileKey, file.name, file.size, file.type, title || null, now).run();
+        await c.env.R2_BUCKET.put(fileKey, arrayBuffer, {
+          httpMetadata: {
+            contentType: file.type || 'application/octet-stream',
+          },
+        });
+        console.log('[Share Target] File uploaded to R2');
 
-      return c.redirect('/?shared=success');
-    } catch (error) {
-      console.error('Share file upload failed:', error);
-      return c.redirect('/?shared=error');
+        const type = file.type?.startsWith('image/') ? 'image' 
+          : file.type?.startsWith('video/') ? 'video' 
+          : 'file';
+
+        const id = crypto.randomUUID();
+        const now = Date.now();
+
+        await c.env.DB.prepare(`
+          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, type, '', fileKey, file.name || 'unnamed', file.size, file.type || 'application/octet-stream', title || null, now).run();
+
+        console.log('[Share Target] DB record created, id:', id);
+        return c.redirect('/?shared=success');
+      } catch (error) {
+        console.error('[Share Target] File upload failed:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        return c.redirect('/?shared=error&reason=' + encodeURIComponent(errorMsg));
+      }
     }
   }
 
@@ -70,6 +117,8 @@ app.post('/share-target', async (c) => {
   const content = url || text || title || '';
   const type = /^https?:\/\//i.test(content.trim()) ? 'link' : 'text';
   
+  console.log('[Share Target] Processing as text/link:', { content, type });
+
   if (content) {
     try {
       const id = crypto.randomUUID();
@@ -80,13 +129,15 @@ app.post('/share-target', async (c) => {
         VALUES (?, ?, ?, ?, ?)
       `).bind(id, type, content, title || null, now).run();
 
+      console.log('[Share Target] Text/link saved, id:', id);
       return c.redirect('/?shared=success');
     } catch (error) {
-      console.error('Share text/link failed:', error);
+      console.error('[Share Target] Text/link save failed:', error);
       return c.redirect('/?shared=error');
     }
   }
 
+  console.log('[Share Target] No content to save');
   return c.redirect('/');
 });
 
