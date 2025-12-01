@@ -1,9 +1,13 @@
 // Service Worker for Self PWA
-const CACHE_NAME = 'self-v2';
+const CACHE_NAME = 'self-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/favicon-32.png',
 ];
 
 // IndexedDB for offline share queue
