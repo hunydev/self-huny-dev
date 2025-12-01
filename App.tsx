@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Menu, CheckCircle, XCircle, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Menu, CheckCircle, XCircle, Clock, WifiOff } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import InputArea from './components/InputArea';
 import Feed from './components/Feed';
