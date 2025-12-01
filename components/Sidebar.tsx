@@ -72,9 +72,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="h-16 flex items-center px-6 border-b border-slate-100 justify-between">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              Self.
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+                Self.
+              </h1>
+              <span className="text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
+            </div>
             <button onClick={() => setIsOpen(false)} className="lg:hidden text-slate-400">
               <X size={20} />
             </button>

@@ -221,6 +221,7 @@ const App: React.FC = () => {
             <Menu size={24} />
           </button>
           <span className="ml-2 font-bold text-slate-800">Self.</span>
+          <span className="ml-2 text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-8 scroll-smooth">
