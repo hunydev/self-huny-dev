@@ -202,13 +202,39 @@ export default {
 // Direct share-target handler (outside Hono to avoid body consumption issues)
 async function handleShareTarget(request: Request, env: Env): Promise<Response> {
   console.log('[Share Target Direct] Received request');
-  console.log('[Share Target Direct] Content-Type:', request.headers.get('content-type'));
+  const contentType = request.headers.get('content-type') || '';
+  const contentLength = request.headers.get('content-length');
+  console.log('[Share Target Direct] Content-Type:', contentType);
+  console.log('[Share Target Direct] Content-Length:', contentLength);
+  
+  // Clone the request to preserve the body for potential retry
+  const clonedRequest = request.clone();
   
   let formData: FormData;
   try {
-    formData = await request.formData();
+    // First, try to read raw body for debugging
+    const rawBody = await request.arrayBuffer();
+    console.log('[Share Target Direct] Raw body size:', rawBody.byteLength);
+    
+    // Check if body is complete (ends with boundary)
+    const bodyText = new TextDecoder().decode(rawBody.slice(-200));
+    console.log('[Share Target Direct] Body end (last 200 chars):', bodyText);
+    
+    // Now parse formData from the cloned request
+    formData = await clonedRequest.formData();
   } catch (parseError) {
     console.error('[Share Target Direct] Failed to parse formData:', parseError);
+    
+    // Try to get more debug info
+    try {
+      const debugBody = await request.clone().text();
+      console.log('[Share Target Direct] Debug body length:', debugBody.length);
+      console.log('[Share Target Direct] Debug body start:', debugBody.substring(0, 500));
+      console.log('[Share Target Direct] Debug body end:', debugBody.substring(debugBody.length - 200));
+    } catch (e) {
+      console.log('[Share Target Direct] Could not read debug body');
+    }
+    
     return Response.redirect(new URL('/?shared=error&reason=parse_failed', request.url).toString(), 303);
   }
 
