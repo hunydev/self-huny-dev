@@ -108,11 +108,24 @@ async function handleShareTarget(request) {
     const allFiles = [];
     const formDataEntries = [];
     
-    // Iterate through all formData entries to find files
     for (const [key, value] of formData.entries()) {
-      formDataEntries.push({ key, type: typeof value, isFile: value instanceof File, size: value instanceof File ? value.size : null });
-      if (value instanceof File && value.size > 0) {
-        allFiles.push(value);
+      const isBlob = value instanceof Blob;
+      const isFile = value instanceof File;
+      formDataEntries.push({ 
+        key, 
+        type: typeof value, 
+        isFile,
+        size: isBlob ? value.size : null 
+      });
+      
+      if (isBlob && value.size > 0) {
+        const file = isFile 
+          ? value 
+          : new File([value], getSafeFileName(value), { 
+              type: value.type || 'application/octet-stream',
+              lastModified: Date.now()
+            });
+        allFiles.push(file);
       }
     }
 
@@ -125,87 +138,55 @@ async function handleShareTarget(request) {
       fileDetails: allFiles.map(f => ({ name: f?.name, size: f?.size, type: f?.type }))
     });
 
-    // IMPORTANT: Read file data FIRST before any other operation
-    // Once we read formData, the file streams are consumed
-    const fileBuffers = [];
-    if (allFiles.length > 0) {
-      for (const file of allFiles) {
-        try {
-          // Read the entire file into an ArrayBuffer immediately
-          const arrayBuffer = await file.arrayBuffer();
-          fileBuffers.push({
-            name: file.name || 'unnamed',
-            type: file.type || 'application/octet-stream',
-            size: file.size,
-            buffer: arrayBuffer,
-          });
-          console.log('[SW] File buffered:', file.name, file.size, 'bytes');
-        } catch (fileErr) {
-          console.error('[SW] Error reading file:', file.name, fileErr);
-        }
-      }
-    }
-
-    // Prepare share data for offline queue (base64 encoded)
-    const shareData = {
-      title: title || '',
-      text: text || '',
-      url: url || '',
-      files: fileBuffers.map(f => ({
-        name: f.name,
-        type: f.type,
-        size: f.size,
-        data: arrayBufferToBase64(f.buffer),
-      })),
-    };
-
-    // Try to send to server immediately
-    // IMPORTANT: Use /api/share instead of /share-target to avoid service worker intercepting again
     try {
-      const serverFormData = new FormData();
-      if (title) serverFormData.append('title', title);
-      if (text) serverFormData.append('text', text);
-      if (url) serverFormData.append('url', url);
-      
-      // Create new File objects from the buffered data
-      for (const fileData of fileBuffers) {
-        const blob = new Blob([fileData.buffer], { type: fileData.type });
-        const newFile = new File([blob], fileData.name, { 
-          type: fileData.type,
-          lastModified: Date.now()
-        });
-        serverFormData.append('files', newFile);
-        console.log('[SW] Sending file to server:', newFile.name, newFile.size, 'bytes');
-      }
-
-      const response = await fetch('/api/share', {
-        method: 'POST',
-        body: serverFormData,
-      });
-
+      const response = await forwardShareToServer({ title, text, url, files: allFiles });
       console.log('[SW] Server response:', response.status, response.statusText);
 
       if (response.ok) {
-        // Success - redirect to home with success message
         return Response.redirect('/?shared=success', 303);
       }
-      
-      // Try to get error details
+
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('[SW] Server error response:', errorText);
-      throw new Error(`Server returned ${response.status}: ${errorText}`);
+      console.error('[SW] Server error response:', response.status, errorText);
+      return Response.redirect('/?shared=error&reason=server', 303);
     } catch (networkError) {
-      // Offline or server error - queue for later
       console.log('[SW] Network error, queuing share:', networkError);
-      await saveToShareQueue(shareData);
-      
-      // Still redirect to app with pending message
+      const queuedShare = await serializeShareForQueue({ title, text, url }, allFiles);
+      await saveToShareQueue(queuedShare);
       return Response.redirect('/?shared=pending', 303);
     }
   } catch (error) {
     console.error('[SW] Share target error:', error);
     return Response.redirect('/?shared=error&reason=unknown', 303);
   }
+}
+
+function getSafeFileName(fileLike) {
+  if (fileLike && typeof fileLike.name === 'string') {
+    const trimmed = fileLike.name.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+  return 'unnamed';
+}
+
+async function forwardShareToServer({ title, text, url, files }) {
+  const serverFormData = new FormData();
+  if (title) serverFormData.append('title', title);
+  if (text) serverFormData.append('text', text);
+  if (url) serverFormData.append('url', url);
+
+  for (const file of files) {
+    const safeName = getSafeFileName(file);
+    serverFormData.append('files', file, safeName);
+    console.log('[SW] Forwarding file to server:', safeName, file.size, 'bytes');
+  }
+
+  return fetch('/api/share', {
+    method: 'POST',
+    body: serverFormData,
+  });
 }
 
 // Helper function to convert ArrayBuffer to base64
@@ -218,6 +199,32 @@ function arrayBufferToBase64(buffer) {
     binary += String.fromCharCode.apply(null, chunk);
   }
   return btoa(binary);
+}
+
+async function serializeShareForQueue(meta, files) {
+  const serializedFiles = [];
+
+  for (const file of files) {
+    try {
+      const buffer = await file.arrayBuffer();
+      serializedFiles.push({
+        name: getSafeFileName(file),
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        data: arrayBufferToBase64(buffer),
+      });
+      console.log('[SW] File serialized for queue:', getSafeFileName(file), file.size, 'bytes');
+    } catch (fileErr) {
+      console.error('[SW] Error serializing file for queue:', file?.name, fileErr);
+    }
+  }
+
+  return {
+    title: meta.title || '',
+    text: meta.text || '',
+    url: meta.url || '',
+    files: serializedFiles,
+  };
 }
 
 // Process queued shares when back online
