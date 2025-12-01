@@ -81,7 +81,10 @@ app.post('/share-target', async (c) => {
     // Process first valid file
     const file = allFiles[0];
     if (file) {
-      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_') || 'unnamed';
+      const originalName = typeof file.name === 'string' && file.name.trim().length > 0
+        ? file.name.trim()
+        : 'unnamed';
+      const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
       const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
       
       console.log('[Share Target] Processing file:', {
@@ -118,7 +121,7 @@ app.post('/share-target', async (c) => {
         await c.env.DB.prepare(`
           INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, type, '', fileKey, file.name?.trim() || 'unnamed', file.size, file.type || 'application/octet-stream', title || null, now).run();
+        `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, now).run();
 
         console.log('[Share Target] DB record created, id:', id);
         return c.redirect('/?shared=success');
