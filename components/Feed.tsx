@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Item, Tag } from '../types';
 import FeedItem from './FeedItem';
-import { format, isToday, isYesterday } from 'date-fns';
+import { format, isToday, isYesterday, startOfWeek, startOfMonth } from 'date-fns';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface FeedProps {
   items: Item[];
@@ -11,24 +12,72 @@ interface FeedProps {
 }
 
 const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick }) => {
-  // Group items by date
-  const groupedItems = items.reduce((groups, item) => {
-    const dateKey = format(item.createdAt, 'yyyy-MM-dd');
-    if (!groups[dateKey]) {
-      groups[dateKey] = [];
-    }
-    groups[dateKey].push(item);
-    return groups;
-  }, {} as Record<string, Item[]>);
+  const { settings } = useSettings();
+
+  // Group items based on settings
+  const groupedItems = useMemo(() => {
+    return items.reduce((groups, item) => {
+      let dateKey: string;
+      const date = new Date(item.createdAt);
+      
+      switch (settings.groupBy) {
+        case 'week':
+          const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+          dateKey = format(weekStart, 'yyyy-MM-dd');
+          break;
+        case 'month':
+          const monthStart = startOfMonth(date);
+          dateKey = format(monthStart, 'yyyy-MM');
+          break;
+        case 'day':
+        default:
+          dateKey = format(date, 'yyyy-MM-dd');
+      }
+      
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(item);
+      return groups;
+    }, {} as Record<string, Item[]>);
+  }, [items, settings.groupBy]);
 
   const sortedDates = Object.keys(groupedItems).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   const getDateLabel = (dateStr: string) => {
     const date = new Date(dateStr);
-    if (isToday(date)) return 'Today';
-    if (isYesterday(date)) return 'Yesterday';
-    return format(date, 'MMMM d, yyyy');
+    
+    if (settings.groupBy === 'month') {
+      return format(date, 'MMMM yyyy');
+    }
+    
+    if (settings.groupBy === 'week') {
+      const weekEnd = new Date(date);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      return `${format(date, 'MMM d')} - ${format(weekEnd, 'MMM d, yyyy')}`;
+    }
+    
+    // Day grouping
+    const relativeLabel = isToday(date) ? 'Today' : isYesterday(date) ? 'Yesterday' : null;
+    const absoluteLabel = format(date, 'MMMM d, yyyy');
+    
+    switch (settings.dateFormat) {
+      case 'absolute':
+        return absoluteLabel;
+      case 'both':
+        return relativeLabel ? `${relativeLabel} - ${absoluteLabel}` : absoluteLabel;
+      case 'relative':
+      default:
+        return relativeLabel || absoluteLabel;
+    }
   };
+
+  // Grid columns based on settings
+  const gridColsClass = useMemo(() => {
+    const cols = settings.gridColumns;
+    // Base: 1 col on mobile, then scale up
+    return `grid-cols-1 sm:grid-cols-2 md:grid-cols-${Math.min(cols, 3)} lg:grid-cols-${Math.min(cols, 4)} xl:grid-cols-${cols}`;
+  }, [settings.gridColumns]);
 
   if (items.length === 0) {
     return (
@@ -48,10 +97,17 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick }) => {
     <div className="space-y-8 pb-20">
       {sortedDates.map(dateKey => (
         <div key={dateKey}>
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 pl-1 py-2">
-            {getDateLabel(dateKey)}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="flex items-center gap-2 mb-4 pl-1 py-2">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              {getDateLabel(dateKey)}
+            </h2>
+            {settings.showItemCount && (
+              <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded-full font-medium">
+                {groupedItems[dateKey].length}
+              </span>
+            )}
+          </div>
+          <div className={`grid ${gridColsClass} gap-4`}>
             {groupedItems[dateKey].map(item => (
               <FeedItem 
                 key={item.id} 
@@ -59,6 +115,7 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick }) => {
                 tags={tags} 
                 onDelete={onDelete}
                 onClick={() => onItemClick(item)}
+                compact={settings.compactMode}
               />
             ))}
           </div>

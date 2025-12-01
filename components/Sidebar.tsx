@@ -9,28 +9,41 @@ import {
   Settings,
   Tag as TagIcon,
   X,
-  Plus
+  Plus,
+  Search
 } from 'lucide-react';
-import { NavItem, ItemType, Tag } from '../types';
+import { NavItem, ItemType, Tag, Item } from '../types';
 
 interface SidebarProps {
   activeFilter: ItemType | 'all';
   onFilterChange: (type: ItemType | 'all') => void;
+  activeTagFilter: string | null;
+  onTagFilterChange: (tagId: string | null) => void;
   tags: Tag[];
   onAddTag: (name: string) => void;
   onDeleteTag: (id: string) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  onSettingsClick: () => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  itemCounts: Record<string, number>;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
   activeFilter, 
-  onFilterChange, 
+  onFilterChange,
+  activeTagFilter,
+  onTagFilterChange,
   tags, 
   onAddTag, 
   onDeleteTag,
   isOpen,
-  setIsOpen
+  setIsOpen,
+  onSettingsClick,
+  searchQuery,
+  onSearchChange,
+  itemCounts
 }) => {
   const [newTag, setNewTag] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
@@ -51,6 +64,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       setNewTag('');
       setShowTagInput(false);
     }
+  };
+
+  const handleTagClick = (tagId: string) => {
+    // Clear type filter when selecting a tag
+    if (activeTagFilter === tagId) {
+      onTagFilterChange(null);
+    } else {
+      onTagFilterChange(tagId);
+      onFilterChange('all');
+    }
+    setIsOpen(false);
   };
 
   return (
@@ -83,25 +107,58 @@ const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
+          {/* Search */}
+          <div className="px-3 py-3">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => onSearchChange('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded text-slate-400"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Main Nav */}
-          <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  if (item.filterType) onFilterChange(item.filterType);
-                  setIsOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  activeFilter === item.filterType 
-                    ? 'bg-indigo-50 text-indigo-600' 
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
+          <nav className="flex-1 overflow-y-auto py-2 px-3 space-y-1">
+            {navItems.map((item) => {
+              const count = itemCounts[item.filterType || 'all'] || 0;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.filterType) {
+                      onFilterChange(item.filterType);
+                      onTagFilterChange(null); // Clear tag filter
+                    }
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    activeFilter === item.filterType && !activeTagFilter
+                      ? 'bg-indigo-50 text-indigo-600' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {item.icon}
+                    {item.label}
+                  </div>
+                  <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
 
             <div className="my-4 border-t border-slate-100 mx-3" />
 
@@ -132,30 +189,49 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
 
               <div className="space-y-0.5">
-                {tags.map((tag) => (
-                  <div key={tag.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                    <div className="flex items-center gap-3 text-sm text-slate-600 font-medium">
-                      <TagIcon size={16} className="text-slate-400" />
-                      {tag.name}
-                    </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if(confirm('Delete label?')) onDeleteTag(tag.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
+                {tags.map((tag) => {
+                  const tagCount = itemCounts[`tag:${tag.id}`] || 0;
+                  return (
+                    <div 
+                      key={tag.id} 
+                      onClick={() => handleTagClick(tag.id)}
+                      className={`group flex items-center justify-between px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                        activeTagFilter === tag.id
+                          ? 'bg-indigo-50 text-indigo-600'
+                          : 'hover:bg-slate-50'
+                      }`}
                     >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-3 text-sm font-medium">
+                        <TagIcon size={16} className={activeTagFilter === tag.id ? 'text-indigo-500' : 'text-slate-400'} />
+                        {tag.name}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                          {tagCount}
+                        </span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if(confirm('Delete label?')) onDeleteTag(tag.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </nav>
 
           {/* Footer */}
           <div className="p-4 border-t border-slate-100">
-            <button className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+            <button 
+              onClick={onSettingsClick}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+            >
               <Settings size={18} />
               Settings
             </button>

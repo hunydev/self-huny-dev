@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestMetadata } from '../services/geminiService';
@@ -6,9 +6,14 @@ import { suggestMetadata } from '../services/geminiService';
 interface InputAreaProps {
   onSave: (item: Omit<Item, 'id' | 'createdAt'>) => void;
   availableTags: Tag[];
+  autoFocus?: boolean;
 }
 
-const InputArea: React.FC<InputAreaProps> = ({ onSave, availableTags }) => {
+export interface InputAreaHandle {
+  focus: () => void;
+}
+
+const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus }, ref) => {
   const [text, setText] = useState('');
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -16,6 +21,24 @@ const InputArea: React.FC<InputAreaProps> = ({ onSave, availableTags }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Expose focus method to parent
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        setIsExpanded(true);
+      }
+    }
+  }));
+
+  // Auto focus if prop is set
+  useEffect(() => {
+    if (autoFocus && textareaRef.current) {
+      textareaRef.current.focus();
+      setIsExpanded(true);
+    }
+  }, [autoFocus]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -231,6 +254,8 @@ const InputArea: React.FC<InputAreaProps> = ({ onSave, availableTags }) => {
       )}
     </div>
   );
-};
+});
+
+InputArea.displayName = 'InputArea';
 
 export default InputArea;

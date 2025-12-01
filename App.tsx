@@ -1,23 +1,30 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Menu, CheckCircle, XCircle, Clock, WifiOff } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X } from 'lucide-react';
 import Sidebar from './components/Sidebar';
-import InputArea from './components/InputArea';
+import InputArea, { InputAreaHandle } from './components/InputArea';
 import Feed from './components/Feed';
 import ItemModal from './components/ItemModal';
+import SettingsModal from './components/SettingsModal';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
 
 type ShareStatus = 'success' | 'error' | 'pending' | null;
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [activeFilter, setActiveFilter] = useState<ItemType | 'all'>('all');
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [shareStatus, setShareStatus] = useState<ShareStatus>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
+  const inputAreaRef = useRef<InputAreaHandle>(null);
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -88,9 +95,10 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
     
-    // Check for share result notification
+    // Check for share result notification and action parameter
     const params = new URLSearchParams(window.location.search);
     const shared = params.get('shared') as ShareStatus;
+    const action = params.get('action');
     
     if (shared) {
       setShareStatus(shared);
@@ -105,6 +113,13 @@ const App: React.FC = () => {
       if (shared === 'success') {
         loadData();
       }
+    }
+    
+    // Handle "add" action from app shortcut
+    if (action === 'add') {
+      setShouldAutoFocus(true);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [loadData]);
 
@@ -160,10 +175,51 @@ const App: React.FC = () => {
     }
   };
 
+  // Filtered items based on type, tag, and search
   const filteredItems = useMemo(() => {
-    if (activeFilter === 'all') return items;
-    return items.filter(item => item.type === activeFilter);
-  }, [items, activeFilter]);
+    let result = items;
+    
+    // Filter by type
+    if (activeFilter !== 'all') {
+      result = result.filter(item => item.type === activeFilter);
+    }
+    
+    // Filter by tag
+    if (activeTagFilter) {
+      result = result.filter(item => item.tags.includes(activeTagFilter));
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(item => 
+        (item.title?.toLowerCase().includes(query)) ||
+        (item.content?.toLowerCase().includes(query)) ||
+        (item.fileName?.toLowerCase().includes(query))
+      );
+    }
+    
+    return result;
+  }, [items, activeFilter, activeTagFilter, searchQuery]);
+
+  // Calculate item counts for sidebar
+  const itemCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: items.length,
+      [ItemType.TEXT]: items.filter(i => i.type === ItemType.TEXT).length,
+      [ItemType.LINK]: items.filter(i => i.type === ItemType.LINK).length,
+      [ItemType.IMAGE]: items.filter(i => i.type === ItemType.IMAGE).length,
+      [ItemType.VIDEO]: items.filter(i => i.type === ItemType.VIDEO).length,
+      [ItemType.FILE]: items.filter(i => i.type === ItemType.FILE).length,
+    };
+    
+    // Count items per tag
+    tags.forEach(tag => {
+      counts[`tag:${tag.id}`] = items.filter(i => i.tags.includes(tag.id)).length;
+    });
+    
+    return counts;
+  }, [items, tags]);
 
   if (isLoading) {
     return (
@@ -224,11 +280,17 @@ const App: React.FC = () => {
       <Sidebar 
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}
+        activeTagFilter={activeTagFilter}
+        onTagFilterChange={setActiveTagFilter}
         tags={tags}
         onAddTag={handleAddTag}
         onDeleteTag={handleDeleteTag}
         isOpen={isSidebarOpen}
         setIsOpen={setIsSidebarOpen}
+        onSettingsClick={() => setIsSettingsOpen(true)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        itemCounts={itemCounts}
       />
 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
@@ -248,11 +310,41 @@ const App: React.FC = () => {
             <div className="sticky top-0 z-20 bg-slate-50 pt-4 lg:pt-8 pb-4 px-4 lg:px-8">
               <div className="max-w-3xl mx-auto w-full">
                 <InputArea 
+                  ref={inputAreaRef}
                   onSave={handleSaveItem} 
-                  availableTags={tags} 
+                  availableTags={tags}
+                  autoFocus={shouldAutoFocus}
                 />
               </div>
             </div>
+
+            {/* Active filter indicator */}
+            {(activeTagFilter || searchQuery) && (
+              <div className="px-4 lg:px-8 pb-2">
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  {searchQuery && (
+                    <span className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200">
+                      <Search size={14} />
+                      "{searchQuery}"
+                      <button onClick={() => setSearchQuery('')} className="ml-1 hover:text-slate-700">
+                        <X size={14} />
+                      </button>
+                    </span>
+                  )}
+                  {activeTagFilter && (
+                    <span className="flex items-center gap-1 bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg border border-indigo-200">
+                      #{tags.find(t => t.id === activeTagFilter)?.name}
+                      <button onClick={() => setActiveTagFilter(null)} className="ml-1 hover:text-indigo-800">
+                        <X size={14} />
+                      </button>
+                    </span>
+                  )}
+                  <span className="text-slate-400">
+                    {filteredItems.length} items
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Feed Section */}
             <div className="px-4 lg:px-8 pb-4 lg:pb-8">
@@ -275,7 +367,21 @@ const App: React.FC = () => {
         onClose={() => setSelectedItem(null)}
         onUpdateTags={handleUpdateItemTags}
       />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <SettingsProvider>
+      <AppContent />
+    </SettingsProvider>
   );
 };
 

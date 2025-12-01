@@ -9,9 +9,10 @@ interface FeedItemProps {
   tags: Tag[];
   onDelete: (id: string) => void;
   onClick: () => void;
+  compact?: boolean;
 }
 
-const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick }) => {
+const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, compact = false }) => {
 
   // Get file URL from R2
   const fileUrl = useMemo(() => {
