@@ -104,13 +104,7 @@ async function handleShareTarget(request) {
     const url = formData.get('url');
     const files = formData.getAll('files');
 
-    console.log('[SW] Share target received:', {
-      title,
-      text,
-      url,
-      filesCount: files ? files.length : 0,
-      fileDetails: files ? files.map(f => ({ name: f?.name, size: f?.size, type: f?.type })) : []
-    });
+    console.log('[SW] Share target received, files:', files ? files.length : 0);
 
     // IMPORTANT: Read file data FIRST before any other operation
     // Once we read formData, the file streams are consumed
@@ -127,9 +121,8 @@ async function handleShareTarget(request) {
               size: file.size,
               buffer: arrayBuffer,
             });
-            console.log('[SW] File buffered:', file.name, file.size, 'bytes');
           } catch (fileErr) {
-            console.error('[SW] Error reading file:', file.name, fileErr);
+            console.error('[SW] Error reading file');
           }
         }
       }
@@ -163,7 +156,6 @@ async function handleShareTarget(request) {
           lastModified: Date.now()
         });
         serverFormData.append('files', newFile);
-        console.log('[SW] Sending file to server:', newFile.name, newFile.size, 'bytes');
       }
 
       const response = await fetch('/share-target', {
@@ -171,28 +163,27 @@ async function handleShareTarget(request) {
         body: serverFormData,
       });
 
-      console.log('[SW] Server response:', response.status, response.statusText);
+      console.log('[SW] Server response:', response.status);
 
       if (response.ok || response.redirected) {
         // Success - redirect to home with success message
         return Response.redirect('/?shared=success', 303);
       }
       
-      // Try to get error details
-      const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('[SW] Server error response:', errorText);
-      throw new Error(`Server returned ${response.status}: ${errorText}`);
+      // Try to get error details (only log status, not error body)
+      console.error('[SW] Server error response:', response.status);
+      throw new Error(`Server returned ${response.status}`);
     } catch (networkError) {
       // Offline or server error - queue for later
-      console.log('[SW] Network error, queuing share:', networkError);
+      console.log('[SW] Network error, queuing share');
       await saveToShareQueue(shareData);
       
       // Still redirect to app with pending message
       return Response.redirect('/?shared=pending', 303);
     }
   } catch (error) {
-    console.error('[SW] Share target error:', error);
-    return Response.redirect('/?shared=error&reason=' + encodeURIComponent(error.message), 303);
+    console.error('[SW] Share target error');
+    return Response.redirect('/?shared=error&reason=unknown', 303);
   }
 }
 
@@ -220,7 +211,6 @@ async function processShareQueue() {
       
       // Convert base64 files back to blobs
       if (share.files && share.files.length > 0) {
-        console.log('[SW] Processing queued files:', share.files.length);
         for (const fileData of share.files) {
           try {
             const binaryStr = atob(fileData.data);
@@ -234,9 +224,8 @@ async function processShareQueue() {
               lastModified: Date.now()
             });
             formData.append('files', file);
-            console.log('[SW] Queued file recreated:', fileData.name, bytes.length, 'bytes');
           } catch (fileErr) {
-            console.error('[SW] Error recreating file from queue:', fileData.name, fileErr);
+            console.error('[SW] Error recreating file from queue');
           }
         }
       }
@@ -246,16 +235,13 @@ async function processShareQueue() {
         body: formData,
       });
 
-      console.log('[SW] Queue sync response:', response.status);
-
       if (response.ok || response.redirected) {
         await deleteFromQueue(share.id);
         // Notify client about successful sync
         notifyClients({ type: 'SHARE_SYNCED', id: share.id });
-        console.log('[SW] Queued share synced and removed:', share.id);
       }
     } catch (error) {
-      console.error('[SW] Failed to process queued share:', error);
+      console.error('[SW] Failed to process queued share');
     }
   }
 }
