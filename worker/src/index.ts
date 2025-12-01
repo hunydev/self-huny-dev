@@ -101,7 +101,7 @@ app.post('/share-target', async (c) => {
         await c.env.DB.prepare(`
           INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, type, '', fileKey, file.name || 'unnamed', file.size, file.type || 'application/octet-stream', title || null, now).run();
+        `).bind(id, type, '', fileKey, file.name?.trim() || 'unnamed', file.size, file.type || 'application/octet-stream', title || null, now).run();
 
         console.log('[Share Target] DB record created, id:', id);
         return c.redirect('/?shared=success');
