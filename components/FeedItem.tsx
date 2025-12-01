@@ -3,6 +3,7 @@ import { Item, ItemType, Tag } from '../types';
 import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
+import { linkifyText } from '../utils/linkify';
 
 interface FeedItemProps {
   item: Item;
@@ -100,7 +101,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
         return (
           <div className="p-4 bg-white flex flex-col h-full min-h-[100px]">
             <p className="text-sm text-slate-700 whitespace-pre-wrap line-clamp-6 leading-relaxed">
-              {item.content}
+              {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
             </p>
           </div>
         );

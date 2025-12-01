@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
 import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video } from 'lucide-react';
 import { getFileUrl } from '../services/db';
+import { linkifyText } from '../utils/linkify';
 
 interface ItemModalProps {
   item: Item | null;
@@ -176,7 +177,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         return (
           <div className="p-6 bg-white rounded-lg border border-slate-100">
             <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
-              {item.content}
+              {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
             </p>
           </div>
         );
