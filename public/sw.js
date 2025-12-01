@@ -1,5 +1,5 @@
 // Service Worker for Self PWA
-const CACHE_NAME = 'self-v6';
+const CACHE_NAME = 'self-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -295,10 +295,10 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Handle share target POST
+  // Let share target POST requests pass through directly to server
+  // Do NOT intercept - the server will handle it directly
   if (url.pathname === '/share-target' && request.method === 'POST') {
-    event.respondWith(handleShareTarget(request));
-    return;
+    return; // Don't call event.respondWith, let browser handle it normally
   }
 
   // Skip non-GET requests
