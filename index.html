@@ -72,6 +72,32 @@
     <div id="root" class="h-full"></div>
     <script type="module" src="/index.tsx"></script>
     
+    <!-- Lock screen orientation to portrait -->
+    <script>
+      // Prevent auto-rotation by locking to portrait mode
+      async function lockOrientation() {
+        try {
+          if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock('portrait');
+            console.log('Screen orientation locked to portrait');
+          }
+        } catch (e) {
+          // Orientation lock not supported or not in fullscreen
+          console.log('Orientation lock not available:', e.message);
+        }
+      }
+      
+      // Try to lock orientation when page loads
+      window.addEventListener('load', lockOrientation);
+      
+      // Also try when entering fullscreen or standalone mode
+      document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) {
+          lockOrientation();
+        }
+      });
+    </script>
+    
     <!-- Register Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
