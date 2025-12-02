@@ -9,6 +9,7 @@ import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider, useToast } from './contexts/ToastContext';
 import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
 
@@ -29,6 +30,7 @@ const AuthenticatedContent: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
   const inputAreaRef = useRef<InputAreaHandle>(null);
+  const { showToast } = useToast();
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -131,8 +133,10 @@ const AuthenticatedContent: React.FC = () => {
     try {
       const newItem = await db.saveItem(draft);
       setItems(prev => [newItem, ...prev]);
+      showToast('아이템이 추가되었습니다', 'success');
     } catch (err) {
       console.error("Failed to save item", err);
+      showToast('아이템 추가에 실패했습니다', 'error');
     }
   };
 
@@ -140,8 +144,10 @@ const AuthenticatedContent: React.FC = () => {
     try {
       await db.deleteItem(id);
       setItems(prev => prev.filter(i => i.id !== id));
+      showToast('아이템이 삭제되었습니다', 'success');
     } catch (err) {
       console.error("Failed to delete item", err);
+      showToast('아이템 삭제에 실패했습니다', 'error');
     }
   };
 
@@ -150,17 +156,22 @@ const AuthenticatedContent: React.FC = () => {
       const newTag: Tag = { id: crypto.randomUUID(), name };
       const savedTag = await db.saveTag(newTag);
       setTags(prev => [...prev, savedTag]);
+      showToast(`'${name}' 레이블이 추가되었습니다`, 'success');
     } catch (err) {
       console.error("Failed to add tag", err);
+      showToast('레이블 추가에 실패했습니다', 'error');
     }
   };
 
   const handleDeleteTag = async (id: string) => {
     try {
+      const tagName = tags.find(t => t.id === id)?.name;
       await db.deleteTag(id);
       setTags(prev => prev.filter(t => t.id !== id));
+      showToast(`'${tagName}' 레이블이 삭제되었습니다`, 'success');
     } catch (err) {
       console.error("Failed to delete tag", err);
+      showToast('레이블 삭제에 실패했습니다', 'error');
     }
   };
 
@@ -174,8 +185,10 @@ const AuthenticatedContent: React.FC = () => {
       if (selectedItem?.id === itemId) {
         setSelectedItem(prev => prev ? { ...prev, tags: tagIds } : null);
       }
+      showToast('레이블이 업데이트되었습니다', 'success');
     } catch (err) {
       console.error("Failed to update item tags", err);
+      showToast('레이블 업데이트에 실패했습니다', 'error');
     }
   };
 
@@ -326,6 +339,8 @@ const AuthenticatedContent: React.FC = () => {
                   onSave={handleSaveItem} 
                   availableTags={tags}
                   autoFocus={shouldAutoFocus}
+                  onAddTag={handleAddTag}
+                  onDeleteTag={handleDeleteTag}
                 />
               </div>
             </div>
@@ -417,7 +432,9 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <SettingsProvider>
-        <AppContent />
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
       </SettingsProvider>
     </AuthProvider>
   );
