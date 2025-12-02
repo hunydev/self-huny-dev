@@ -1,26 +1,32 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2 } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestMetadata } from '../services/geminiService';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface InputAreaProps {
   onSave: (item: Omit<Item, 'id' | 'createdAt'>) => void;
   availableTags: Tag[];
   autoFocus?: boolean;
+  onAddTag?: (name: string) => void;
+  onDeleteTag?: (id: string) => void;
 }
 
 export interface InputAreaHandle {
   focus: () => void;
 }
 
-const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus }, ref) => {
+const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus, onAddTag, onDeleteTag }, ref) => {
   const [text, setText] = useState('');
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { settings } = useSettings();
 
   // Expose focus method to parent
   useImperativeHandle(ref, () => ({
@@ -140,6 +146,33 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setIsExpanded(false);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const shouldSubmit = settings.submitShortcut === 'enter' 
+      ? e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey
+      : e.key === 'Enter' && (e.ctrlKey || e.metaKey);
+    
+    if (shouldSubmit) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const handleAddNewTag = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newTagName.trim() && onAddTag) {
+      onAddTag(newTagName.trim());
+      setNewTagName('');
+    }
+  };
+
+  const handleDeleteTagClick = (tagId: string) => {
+    if (onDeleteTag && confirm('이 레이블을 삭제하시겠습니까?')) {
+      onDeleteTag(tagId);
+      // Unselect if currently selected
+      setSelectedTags(prev => prev.filter(t => t !== tagId));
+    }
+  };
+
   return (
     <div 
       className={`bg-white rounded-xl shadow-sm border border-slate-200 transition-all duration-200 ${isExpanded ? 'p-4' : 'p-2'}`}
@@ -172,6 +205,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
           value={text}
           onChange={(e) => setText(e.target.value)}
           onFocus={() => setIsExpanded(true)}
+          onKeyDown={handleKeyDown}
           placeholder={file ? "Add a caption or title (optional)..." : "Paste link, type note, or drop file..."}
           className="w-full resize-none bg-transparent outline-none text-slate-700 placeholder:text-slate-400 min-h-[44px] py-2.5 max-h-[300px]"
           rows={1}
@@ -191,7 +225,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
           />
 
           {/* Tag Selection */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 relative">
             {availableTags.map(tag => (
               <button
                 key={tag.id}
@@ -205,9 +239,66 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 # {tag.name}
               </button>
             ))}
-            <button className="text-xs px-2.5 py-1 text-slate-400 hover:text-indigo-600 transition-colors">
+            <button 
+              onClick={() => setShowTagManager(!showTagManager)}
+              className={`text-xs px-2.5 py-1 transition-colors ${showTagManager ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`}
+            >
               + Manage Tags
             </button>
+
+            {/* Tag Manager Dropdown */}
+            {showTagManager && (
+              <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden">
+                <div className="p-3 border-b border-slate-100">
+                  <form onSubmit={handleAddNewTag} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      placeholder="새 레이블 이름..."
+                      className="flex-1 text-sm px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newTagName.trim()}
+                      className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </form>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {availableTags.length === 0 ? (
+                    <p className="p-3 text-sm text-slate-400 text-center">레이블이 없습니다</p>
+                  ) : (
+                    availableTags.map(tag => (
+                      <div 
+                        key={tag.id}
+                        className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 group"
+                      >
+                        <span className="text-sm text-slate-700">#{tag.name}</span>
+                        <button
+                          onClick={() => handleDeleteTagClick(tag.id)}
+                          className="p-1 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="삭제"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="p-2 border-t border-slate-100">
+                  <button
+                    onClick={() => setShowTagManager(false)}
+                    className="w-full px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action Bar */}

@@ -6,6 +6,7 @@ export interface Settings {
   groupBy: 'day' | 'week' | 'month';
   showItemCount: boolean;
   compactMode: boolean;
+  submitShortcut: 'enter' | 'ctrl+enter';
 }
 
 const defaultSettings: Settings = {
@@ -14,6 +15,7 @@ const defaultSettings: Settings = {
   groupBy: 'day',
   showItemCount: true,
   compactMode: false,
+  submitShortcut: 'ctrl+enter',
 };
 
 interface SettingsContextType {

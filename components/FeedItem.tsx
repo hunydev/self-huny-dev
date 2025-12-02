@@ -4,6 +4,7 @@ import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Downlo
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
+import { useToast } from '../contexts/ToastContext';
 
 interface FeedItemProps {
   item: Item;
@@ -14,6 +15,7 @@ interface FeedItemProps {
 }
 
 const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, compact = false }) => {
+  const { showToast } = useToast();
 
   // Get file URL from R2
   const fileUrl = useMemo(() => {
@@ -27,10 +29,15 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
     return tags.filter(t => item.tags.includes(t.id));
   }, [tags, item.tags]);
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (item.type === ItemType.LINK || item.type === ItemType.TEXT) {
-      navigator.clipboard.writeText(item.content);
+      try {
+        await navigator.clipboard.writeText(item.content);
+        showToast('클립보드에 복사되었습니다', 'success');
+      } catch (err) {
+        showToast('복사에 실패했습니다', 'error');
+      }
     }
   };
 
