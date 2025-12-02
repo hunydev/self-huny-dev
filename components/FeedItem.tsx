@@ -85,15 +85,75 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
           </div>
         );
       case ItemType.LINK:
+        // Extract domain from URL for display
+        const getDomain = (url: string) => {
+          try {
+            const domain = new URL(url).hostname.replace('www.', '');
+            return domain;
+          } catch {
+            return url;
+          }
+        };
+
+        // If OG image exists, show rich preview card
+        if (item.ogImage) {
+          return (
+            <div className="flex flex-col h-full">
+              {/* OG Image */}
+              <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
+                <img 
+                  src={item.ogImage} 
+                  alt={item.ogTitle || 'Link preview'} 
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => {
+                    // Hide image on error and show fallback
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+              {/* Content */}
+              <div className="p-3 bg-white flex flex-col gap-1.5 flex-1">
+                {/* Title */}
+                <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug">
+                  {item.ogTitle || item.title || getDomain(item.content)}
+                </h4>
+                {/* Description */}
+                {item.ogDescription && (
+                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                    {item.ogDescription}
+                  </p>
+                )}
+                {/* Domain */}
+                <div className="flex items-center gap-1.5 text-slate-400 mt-auto pt-1">
+                  <ExternalLink size={12} />
+                  <span className="text-[11px] font-medium truncate">{getDomain(item.content)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Fallback: Show simple link card (no OG image)
         return (
-          <div className="p-4 bg-indigo-50/50 flex flex-col h-full min-h-[120px]">
+          <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 flex flex-col h-full min-h-[120px]">
             <div className="flex items-center gap-2 mb-2 text-indigo-600">
               <ExternalLink size={16} />
               <span className="text-xs font-bold uppercase tracking-wider">Link</span>
             </div>
-            <a href={item.content} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-slate-900 hover:underline line-clamp-3 break-all">
-              {item.content}
-            </a>
+            {item.ogTitle && (
+              <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 mb-1">
+                {item.ogTitle}
+              </h4>
+            )}
+            {item.ogDescription && (
+              <p className="text-xs text-slate-500 line-clamp-2 mb-2">
+                {item.ogDescription}
+              </p>
+            )}
+            <p className="text-xs text-indigo-600 font-medium truncate mt-auto">
+              {getDomain(item.content)}
+            </p>
           </div>
         );
       case ItemType.TEXT:

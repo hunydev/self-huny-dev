@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { parseOgMetadata } from './og';
 
 export const itemsRoutes = new Hono<{ Bindings: Env }>();
 
@@ -50,6 +51,9 @@ itemsRoutes.get('/', async (c) => {
       fileSize: row.file_size,
       mimeType: row.mime_type,
       title: row.title,
+      ogImage: row.og_image,
+      ogTitle: row.og_title,
+      ogDescription: row.og_description,
       tags: row.tag_ids ? row.tag_ids.split(',') : [],
       createdAt: row.created_at,
     }));
@@ -89,6 +93,9 @@ itemsRoutes.get('/:id', async (c) => {
       fileSize: item.file_size,
       mimeType: item.mime_type,
       title: item.title,
+      ogImage: item.og_image,
+      ogTitle: item.og_title,
+      ogDescription: item.og_description,
       tags: item.tag_ids ? (item.tag_ids as string).split(',') : [],
       createdAt: item.created_at,
     });
@@ -107,9 +114,27 @@ itemsRoutes.post('/', async (c) => {
     const id = crypto.randomUUID();
     const now = Date.now();
 
+    // Parse OG metadata for link items
+    let ogImage: string | null = null;
+    let ogTitle: string | null = null;
+    let ogDescription: string | null = null;
+
+    if (type === 'link' && content) {
+      try {
+        const ogData = await parseOgMetadata(content);
+        ogImage = ogData.ogImage || null;
+        ogTitle = ogData.ogTitle || null;
+        ogDescription = ogData.ogDescription || null;
+        console.log('[Items] OG metadata parsed:', { ogImage: !!ogImage, ogTitle, ogDescription: !!ogDescription });
+      } catch (error) {
+        console.error('[Items] Failed to parse OG metadata:', error);
+        // Continue without OG data
+      }
+    }
+
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, 
       type, 
@@ -119,6 +144,9 @@ itemsRoutes.post('/', async (c) => {
       fileSize || null, 
       mimeType || null, 
       title || null, 
+      ogImage,
+      ogTitle,
+      ogDescription,
       now
     ).run();
 
@@ -141,6 +169,9 @@ itemsRoutes.post('/', async (c) => {
       fileSize, 
       mimeType, 
       title, 
+      ogImage,
+      ogTitle,
+      ogDescription,
       tags: tags || [], 
       createdAt: now 
     }, 201);

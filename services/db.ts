@@ -11,6 +11,9 @@ interface ApiItem {
   fileSize?: number;
   mimeType?: string;
   title?: string;
+  ogImage?: string;
+  ogTitle?: string;
+  ogDescription?: string;
   tags: string[];
   createdAt: number;
 }
@@ -38,6 +41,9 @@ const transformItem = (apiItem: ApiItem): Item => ({
   fileSize: apiItem.fileSize,
   mimeType: apiItem.mimeType,
   title: apiItem.title,
+  ogImage: apiItem.ogImage,
+  ogTitle: apiItem.ogTitle,
+  ogDescription: apiItem.ogDescription,
   tags: apiItem.tags || [],
   createdAt: apiItem.createdAt,
 });

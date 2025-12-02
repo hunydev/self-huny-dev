@@ -4,6 +4,7 @@ import { itemsRoutes } from './routes/items';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/upload';
 import { shareRoutes } from './routes/share';
+import { ogRoutes, parseOgMetadata } from './routes/og';
 import { uploadFileToR2 } from './utils/uploadFile';
 
 export interface Env {
@@ -27,6 +28,7 @@ app.route('/api/items', itemsRoutes);
 app.route('/api/tags', tagsRoutes);
 app.route('/api/upload', uploadRoutes);
 app.route('/api/share', shareRoutes);
+app.route('/api/og', ogRoutes);
 
 // PWA Share Target - handles POST from share intent
 app.post('/share-target', async (c) => {
@@ -336,10 +338,27 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env)
       const id = crypto.randomUUID();
       const now = Date.now();
       
+      // Parse OG metadata for link items
+      let ogImage: string | null = null;
+      let ogTitle: string | null = null;
+      let ogDescription: string | null = null;
+      
+      if (type === 'link') {
+        try {
+          const ogData = await parseOgMetadata(content);
+          ogImage = ogData.ogImage || null;
+          ogTitle = ogData.ogTitle || null;
+          ogDescription = ogData.ogDescription || null;
+          console.log('[Share Target Direct] OG metadata parsed:', { ogImage: !!ogImage, ogTitle, ogDescription: !!ogDescription });
+        } catch (ogError) {
+          console.error('[Share Target Direct] Failed to parse OG metadata:', ogError);
+        }
+      }
+      
       await env.DB.prepare(`
-        INSERT INTO items (id, type, content, title, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).bind(id, type, content, title || null, now).run();
+        INSERT INTO items (id, type, content, title, og_image, og_title, og_description, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, type, content, title || null, ogImage, ogTitle, ogDescription, now).run();
 
       console.log('[Share Target Direct] Text/link saved, id:', id);
       return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
@@ -503,10 +522,26 @@ async function processShareData(data: ParsedMultipart, requestUrl: string, env: 
     const id = crypto.randomUUID();
     const now = Date.now();
     
+    // Parse OG metadata for link items
+    let ogImage: string | null = null;
+    let ogTitle: string | null = null;
+    let ogDescription: string | null = null;
+    
+    if (type === 'link') {
+      try {
+        const ogData = await parseOgMetadata(content);
+        ogImage = ogData.ogImage || null;
+        ogTitle = ogData.ogTitle || null;
+        ogDescription = ogData.ogDescription || null;
+      } catch (ogError) {
+        console.error('[Share Target Direct] Failed to parse OG metadata in processShareData:', ogError);
+      }
+    }
+    
     await env.DB.prepare(`
-      INSERT INTO items (id, type, content, title, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(id, type, content, data.title || null, now).run();
+      INSERT INTO items (id, type, content, title, og_image, og_title, og_description, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, type, content, data.title || null, ogImage, ogTitle, ogDescription, now).run();
 
     return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
   }
