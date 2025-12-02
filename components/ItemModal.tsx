@@ -155,20 +155,69 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         );
       
       case ItemType.LINK:
+        const getDomain = (url: string) => {
+          try {
+            return new URL(url).hostname.replace('www.', '');
+          } catch {
+            return url;
+          }
+        };
+
         return (
-          <div className="p-6 bg-indigo-50/50 rounded-lg">
-            <div className="flex items-center gap-2 mb-3 text-indigo-600">
-              <ExternalLink size={18} />
-              <span className="text-sm font-bold uppercase tracking-wider">Link</span>
+          <div className="rounded-lg overflow-hidden border border-slate-200 bg-white">
+            {/* OG Image */}
+            {item.ogImage && (
+              <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
+                <img 
+                  src={item.ogImage} 
+                  alt={item.ogTitle || 'Link preview'} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            
+            {/* Content Section */}
+            <div className="p-5">
+              {/* Title */}
+              {(item.ogTitle || item.title) && (
+                <h3 className="text-lg font-semibold text-slate-800 mb-2 leading-snug">
+                  {item.ogTitle || item.title}
+                </h3>
+              )}
+              
+              {/* Description */}
+              {item.ogDescription && (
+                <p className="text-sm text-slate-500 mb-3 leading-relaxed line-clamp-3">
+                  {item.ogDescription}
+                </p>
+              )}
+              
+              {/* URL with domain */}
+              <div className="flex items-center gap-2 text-indigo-600">
+                <ExternalLink size={14} />
+                <a 
+                  href={item.content} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-sm font-medium hover:underline truncate"
+                >
+                  {getDomain(item.content)}
+                </a>
+              </div>
+              
+              {/* Full URL (collapsible) */}
+              <details className="mt-3">
+                <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
+                  Show full URL
+                </summary>
+                <p className="mt-2 text-xs text-slate-500 break-all bg-slate-50 p-2 rounded select-text">
+                  {item.content}
+                </p>
+              </details>
             </div>
-            <a 
-              href={item.content} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="text-lg font-medium text-slate-900 hover:underline break-all"
-            >
-              {item.content}
-            </a>
           </div>
         );
       

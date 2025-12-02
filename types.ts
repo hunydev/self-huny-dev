@@ -22,6 +22,9 @@ export interface Item {
   fileSize?: number;
   mimeType?: string;
   title?: string;
+  ogImage?: string; // Open Graph image URL
+  ogTitle?: string; // Open Graph title
+  ogDescription?: string; // Open Graph description
   tags: string[]; // Tag IDs
   createdAt: number;
 }
