@@ -155,14 +155,6 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         );
       
       case ItemType.LINK:
-        const getDomain = (url: string) => {
-          try {
-            return new URL(url).hostname.replace('www.', '');
-          } catch {
-            return url;
-          }
-        };
-
         return (
           <div className="rounded-lg overflow-hidden border border-slate-200 bg-white">
             {/* OG Image */}
@@ -195,28 +187,18 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                 </p>
               )}
               
-              {/* URL with domain */}
-              <div className="flex items-center gap-2 text-indigo-600">
-                <ExternalLink size={14} />
+              {/* Full URL - always visible */}
+              <div className="flex items-start gap-2 text-indigo-600 mt-3 p-3 bg-slate-50 rounded-lg">
+                <ExternalLink size={14} className="flex-shrink-0 mt-0.5" />
                 <a 
                   href={item.content} 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="text-sm font-medium hover:underline truncate"
+                  className="text-sm font-medium hover:underline break-all select-text"
                 >
-                  {getDomain(item.content)}
+                  {item.content}
                 </a>
               </div>
-              
-              {/* Full URL (collapsible) */}
-              <details className="mt-3">
-                <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
-                  Show full URL
-                </summary>
-                <p className="mt-2 text-xs text-slate-500 break-all bg-slate-50 p-2 rounded select-text">
-                  {item.content}
-                </p>
-              </details>
             </div>
           </div>
         );
