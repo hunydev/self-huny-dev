@@ -317,6 +317,11 @@ const AuthenticatedContent: React.FC = () => {
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600">
               <Menu size={24} />
             </button>
+            <img 
+              src="/icons/favicon-32.png" 
+              alt="Self" 
+              className="ml-2 w-7 h-7 rounded-md"
+            />
             <span className="ml-2 font-bold text-slate-800">Self.</span>
             <span className="ml-2 text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
           </div>

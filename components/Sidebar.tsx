@@ -97,6 +97,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           {/* Header */}
           <div className="h-16 flex items-center px-6 border-b border-slate-100 justify-between">
             <div className="flex items-center gap-2">
+              <img 
+                src="/icons/favicon-32.png" 
+                alt="Self" 
+                className="w-8 h-8 rounded-lg"
+              />
               <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
                 Self.
               </h1>
