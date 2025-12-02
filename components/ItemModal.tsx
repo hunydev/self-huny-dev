@@ -205,6 +205,52 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       
       case ItemType.TEXT:
       default:
+        // If text contains a link with OG data, show rich preview
+        if (item.ogImage) {
+          return (
+            <div className="space-y-4">
+              {/* Text content */}
+              <div className="p-6 bg-white rounded-lg border border-slate-100">
+                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
+                  {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
+                </p>
+              </div>
+              
+              {/* OG Preview Card */}
+              <div className="rounded-lg overflow-hidden border border-slate-200 bg-white">
+                {/* OG Image */}
+                <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
+                  <img 
+                    src={item.ogImage} 
+                    alt={item.ogTitle || 'Link preview'} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+                
+                {/* OG Content */}
+                {(item.ogTitle || item.ogDescription) && (
+                  <div className="p-4">
+                    {item.ogTitle && (
+                      <h4 className="text-sm font-semibold text-slate-800 mb-1 leading-snug">
+                        {item.ogTitle}
+                      </h4>
+                    )}
+                    {item.ogDescription && (
+                      <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">
+                        {item.ogDescription}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+        
+        // Plain text without OG preview
         return (
           <div className="p-6 bg-white rounded-lg border border-slate-100">
             <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">

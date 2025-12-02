@@ -151,6 +151,51 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
         );
       case ItemType.TEXT:
       default:
+        // If text contains a link with OG image, show rich preview
+        if (item.ogImage) {
+          return (
+            <div className="flex flex-col h-full">
+              {/* Text content */}
+              <div className="p-3 bg-white">
+                <p className="text-sm text-slate-700 whitespace-pre-wrap line-clamp-3 leading-relaxed">
+                  {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
+                </p>
+              </div>
+              {/* OG Preview */}
+              <div className="border-t border-slate-100 bg-slate-50">
+                {/* OG Image */}
+                <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
+                  <img 
+                    src={item.ogImage} 
+                    alt={item.ogTitle || 'Link preview'} 
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+                {/* OG Content */}
+                {(item.ogTitle || item.ogDescription) && (
+                  <div className="p-2.5 flex flex-col gap-1">
+                    {item.ogTitle && (
+                      <h4 className="text-xs font-semibold text-slate-700 line-clamp-1 leading-snug">
+                        {item.ogTitle}
+                      </h4>
+                    )}
+                    {item.ogDescription && (
+                      <p className="text-[11px] text-slate-500 line-clamp-1 leading-relaxed">
+                        {item.ogDescription}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+        
+        // Plain text without OG preview
         return (
           <div className="p-4 bg-white flex flex-col h-full min-h-[100px]">
             <p className="text-sm text-slate-700 whitespace-pre-wrap line-clamp-6 leading-relaxed">

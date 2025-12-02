@@ -114,21 +114,38 @@ itemsRoutes.post('/', async (c) => {
     const id = crypto.randomUUID();
     const now = Date.now();
 
-    // Parse OG metadata for link items
+    // Parse OG metadata for link items or text items containing URLs
     let ogImage: string | null = null;
     let ogTitle: string | null = null;
     let ogDescription: string | null = null;
 
-    if (type === 'link' && content) {
-      try {
-        const ogData = await parseOgMetadata(content);
-        ogImage = ogData.ogImage || null;
-        ogTitle = ogData.ogTitle || null;
-        ogDescription = ogData.ogDescription || null;
-        console.log('[Items] OG metadata parsed:', { ogImage: !!ogImage, ogTitle, ogDescription: !!ogDescription });
-      } catch (error) {
-        console.error('[Items] Failed to parse OG metadata:', error);
-        // Continue without OG data
+    if (content) {
+      let urlToParse: string | null = null;
+      
+      if (type === 'link') {
+        // For link type, use the content directly
+        urlToParse = content;
+      } else if (type === 'text') {
+        // For text type, extract the first URL from the content
+        const urlRegex = /(?:https?:\/\/|www\.)[^\s<>"{}|\\^`[\]]+/gi;
+        const match = content.match(urlRegex);
+        if (match && match.length > 0) {
+          urlToParse = match[0].startsWith('www.') ? `https://${match[0]}` : match[0];
+          console.log('[Items] Found URL in text content:', urlToParse);
+        }
+      }
+      
+      if (urlToParse) {
+        try {
+          const ogData = await parseOgMetadata(urlToParse);
+          ogImage = ogData.ogImage || null;
+          ogTitle = ogData.ogTitle || null;
+          ogDescription = ogData.ogDescription || null;
+          console.log('[Items] OG metadata parsed:', { ogImage: !!ogImage, ogTitle, ogDescription: !!ogDescription });
+        } catch (error) {
+          console.error('[Items] Failed to parse OG metadata:', error);
+          // Continue without OG data
+        }
       }
     }
 
