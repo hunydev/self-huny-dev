@@ -85,16 +85,6 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
           </div>
         );
       case ItemType.LINK:
-        // Extract domain from URL for display
-        const getDomain = (url: string) => {
-          try {
-            const domain = new URL(url).hostname.replace('www.', '');
-            return domain;
-          } catch {
-            return url;
-          }
-        };
-
         // If OG image exists, show rich preview card
         if (item.ogImage) {
           return (
@@ -115,19 +105,21 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
               {/* Content */}
               <div className="p-3 bg-white flex flex-col gap-1.5 flex-1">
                 {/* Title */}
-                <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug">
-                  {item.ogTitle || item.title || getDomain(item.content)}
-                </h4>
+                {(item.ogTitle || item.title) && (
+                  <h4 className="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug">
+                    {item.ogTitle || item.title}
+                  </h4>
+                )}
                 {/* Description */}
                 {item.ogDescription && (
                   <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                     {item.ogDescription}
                   </p>
                 )}
-                {/* Domain */}
-                <div className="flex items-center gap-1.5 text-slate-400 mt-auto pt-1">
-                  <ExternalLink size={12} />
-                  <span className="text-[11px] font-medium truncate">{getDomain(item.content)}</span>
+                {/* Full URL */}
+                <div className="flex items-center gap-1.5 text-indigo-500 mt-auto pt-1">
+                  <ExternalLink size={12} className="flex-shrink-0" />
+                  <span className="text-[11px] font-medium truncate hover:underline">{item.content}</span>
                 </div>
               </div>
             </div>
@@ -151,8 +143,9 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
                 {item.ogDescription}
               </p>
             )}
-            <p className="text-xs text-indigo-600 font-medium truncate mt-auto">
-              {getDomain(item.content)}
+            {/* Full URL */}
+            <p className="text-xs text-indigo-600 font-medium break-all line-clamp-2 mt-auto">
+              {item.content}
             </p>
           </div>
         );

@@ -47,6 +47,52 @@ async function parseOgMetadata(url: string): Promise<OgMetadata> {
 }
 
 /**
+ * Extract content from a meta tag
+ * Handles both single and double quotes, and various attribute orders
+ */
+function extractMetaContent(html: string, propertyName: string, attributeType: 'property' | 'name' = 'property'): string | null {
+  // Create patterns that handle both quote types correctly
+  // Pattern 1: property/name comes before content
+  const pattern1 = new RegExp(
+    `<meta[^>]*${attributeType}=["']${propertyName}["'][^>]*content=["']([^"]*(?:"[^']*)?|[^']*(?:'[^"]*)?)?["'][^>]*\\/?>`,
+    'i'
+  );
+  // Pattern 2: content comes before property/name  
+  const pattern2 = new RegExp(
+    `<meta[^>]*content=["']([^"]*(?:"[^']*)?|[^']*(?:'[^"]*)?)?["'][^>]*${attributeType}=["']${propertyName}["'][^>]*\\/?>`,
+    'i'
+  );
+  
+  // Simpler patterns that match the same quote type for content
+  const simplePattern1Double = new RegExp(
+    `<meta[^>]*${attributeType}=["']${propertyName}["'][^>]*content="([^"]*)"`,
+    'i'
+  );
+  const simplePattern1Single = new RegExp(
+    `<meta[^>]*${attributeType}=["']${propertyName}["'][^>]*content='([^']*)'`,
+    'i'
+  );
+  const simplePattern2Double = new RegExp(
+    `<meta[^>]*content="([^"]*)"[^>]*${attributeType}=["']${propertyName}["']`,
+    'i'
+  );
+  const simplePattern2Single = new RegExp(
+    `<meta[^>]*content='([^']*)'[^>]*${attributeType}=["']${propertyName}["']`,
+    'i'
+  );
+  
+  // Try simple patterns first (more reliable)
+  const match = html.match(simplePattern1Double)
+    || html.match(simplePattern1Single)
+    || html.match(simplePattern2Double)
+    || html.match(simplePattern2Single)
+    || html.match(pattern1)
+    || html.match(pattern2);
+    
+  return match ? match[1] : null;
+}
+
+/**
  * Extract OG metadata from HTML string using regex
  */
 function extractOgFromHtml(html: string): OgMetadata {
@@ -55,25 +101,22 @@ function extractOgFromHtml(html: string): OgMetadata {
   // Limit parsing to first 50KB to avoid performance issues
   const headSection = html.substring(0, 50000);
   
-  // og:image - try multiple patterns
-  const ogImageMatch = headSection.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*\/?>/i)
-    || headSection.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["'][^>]*\/?>/i);
-  if (ogImageMatch) {
-    result.ogImage = ogImageMatch[1];
+  // og:image
+  const ogImage = extractMetaContent(headSection, 'og:image', 'property');
+  if (ogImage) {
+    result.ogImage = ogImage;
   }
   
   // og:title
-  const ogTitleMatch = headSection.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["'][^>]*\/?>/i)
-    || headSection.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["'][^>]*\/?>/i);
-  if (ogTitleMatch) {
-    result.ogTitle = decodeHtmlEntities(ogTitleMatch[1]);
+  const ogTitle = extractMetaContent(headSection, 'og:title', 'property');
+  if (ogTitle) {
+    result.ogTitle = decodeHtmlEntities(ogTitle);
   }
   
   // og:description
-  const ogDescMatch = headSection.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["'][^>]*\/?>/i)
-    || headSection.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["'][^>]*\/?>/i);
-  if (ogDescMatch) {
-    result.ogDescription = decodeHtmlEntities(ogDescMatch[1]);
+  const ogDesc = extractMetaContent(headSection, 'og:description', 'property');
+  if (ogDesc) {
+    result.ogDescription = decodeHtmlEntities(ogDesc);
   }
   
   // Fallback to regular meta tags if OG tags not found
@@ -85,21 +128,45 @@ function extractOgFromHtml(html: string): OgMetadata {
   }
   
   if (!result.ogDescription) {
-    const descMatch = headSection.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["'][^>]*\/?>/i)
-      || headSection.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["'][^>]*\/?>/i);
-    if (descMatch) {
-      result.ogDescription = decodeHtmlEntities(descMatch[1]);
+    const descContent = extractMetaContent(headSection, 'description', 'name');
+    if (descContent) {
+      result.ogDescription = decodeHtmlEntities(descContent);
     }
   }
   
   // Fallback to twitter:image if no og:image
   if (!result.ogImage) {
-    const twitterImageMatch = headSection.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["'][^>]*\/?>/i)
-      || headSection.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["'][^>]*\/?>/i);
-    if (twitterImageMatch) {
-      result.ogImage = twitterImageMatch[1];
+    const twitterImage = extractMetaContent(headSection, 'twitter:image', 'name')
+      || extractMetaContent(headSection, 'twitter:image', 'property');
+    if (twitterImage) {
+      result.ogImage = twitterImage;
     }
   }
+  
+  // Fallback to twitter:title if no og:title
+  if (!result.ogTitle) {
+    const twitterTitle = extractMetaContent(headSection, 'twitter:title', 'name')
+      || extractMetaContent(headSection, 'twitter:title', 'property');
+    if (twitterTitle) {
+      result.ogTitle = decodeHtmlEntities(twitterTitle);
+    }
+  }
+  
+  // Fallback to twitter:description if no og:description
+  if (!result.ogDescription) {
+    const twitterDesc = extractMetaContent(headSection, 'twitter:description', 'name')
+      || extractMetaContent(headSection, 'twitter:description', 'property');
+    if (twitterDesc) {
+      result.ogDescription = decodeHtmlEntities(twitterDesc);
+    }
+  }
+  
+  console.log('[OG Parser] Extracted metadata:', {
+    hasImage: !!result.ogImage,
+    hasTitle: !!result.ogTitle,
+    hasDesc: !!result.ogDescription,
+    title: result.ogTitle?.substring(0, 50)
+  });
   
   return result;
 }
