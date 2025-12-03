@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X } from 'lucide-react';
+import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import InputArea, { InputAreaHandle } from './components/InputArea';
 import Feed from './components/Feed';
@@ -29,6 +29,7 @@ const AuthenticatedContent: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const inputAreaRef = useRef<InputAreaHandle>(null);
   const { showToast } = useToast();
 
@@ -47,6 +48,18 @@ const AuthenticatedContent: React.FC = () => {
       setIsLoading(false);
     }
   }, []);
+
+  // Manual refresh function with loading indicator
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await loadData();
+      showToast('목록이 갱신되었습니다', 'success');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadData, isRefreshing, showToast]);
 
   // Process share queue when back online
   const processShareQueue = useCallback(async () => {
@@ -95,6 +108,20 @@ const AuthenticatedContent: React.FC = () => {
         navigator.serviceWorker.removeEventListener('message', handleMessage);
       };
     }
+  }, [loadData]);
+
+  // Refresh data when page becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [loadData]);
 
   // Load initial data and check share status
@@ -325,11 +352,29 @@ const AuthenticatedContent: React.FC = () => {
             <span className="ml-2 font-bold text-slate-800">Self.</span>
             <span className="ml-2 text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
           </div>
-          <UserMenu />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+              title="목록 갱신"
+            >
+              <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
+            <UserMenu />
+          </div>
         </div>
 
         {/* Desktop Header with User Menu */}
-        <div className="hidden lg:flex h-14 items-center justify-end px-6 bg-white border-b border-slate-200 shrink-0">
+        <div className="hidden lg:flex h-14 items-center justify-end px-6 bg-white border-b border-slate-200 shrink-0 gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+            title="목록 갱신"
+          >
+            <RefreshCw size={20} className={isRefreshing ? 'animate-spin' : ''} />
+          </button>
           <UserMenu />
         </div>
 
