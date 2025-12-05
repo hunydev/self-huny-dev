@@ -71,15 +71,18 @@ const AuthenticatedContent: React.FC = () => {
   // Track scroll position for scroll-to-top button
   useEffect(() => {
     const container = scrollContainerRef.current;
-    if (!container) return;
+    if (!container || isLoading) return;
 
     const handleScroll = () => {
       setShowScrollTop(container.scrollTop > 300);
     };
 
+    // Check initial scroll position
+    handleScroll();
+
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isLoading]); // Re-run when loading completes
 
   // Process share queue when back online
   const processShareQueue = useCallback(async () => {
