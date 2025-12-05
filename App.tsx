@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw } from 'lucide-react';
+import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw, ArrowUp } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import InputArea, { InputAreaHandle } from './components/InputArea';
 import Feed from './components/Feed';
@@ -30,7 +30,9 @@ const AuthenticatedContent: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const inputAreaRef = useRef<InputAreaHandle>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
 
   // Load data function
@@ -60,6 +62,24 @@ const AuthenticatedContent: React.FC = () => {
       setIsRefreshing(false);
     }
   }, [loadData, isRefreshing, showToast]);
+
+  // Scroll to top function
+  const scrollToTop = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Track scroll position for scroll-to-top button
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      setShowScrollTop(container.scrollTop > 300);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Process share queue when back online
   const processShareQueue = useCallback(async () => {
@@ -321,6 +341,17 @@ const AuthenticatedContent: React.FC = () => {
         </div>
       )}
 
+      {/* Scroll to top button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+          aria-label="맨 위로 스크롤"
+        >
+          <ArrowUp size={24} />
+        </button>
+      )}
+
       <Sidebar 
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}
@@ -378,7 +409,7 @@ const AuthenticatedContent: React.FC = () => {
           <UserMenu />
         </div>
 
-        <div className="flex-1 overflow-y-auto scroll-smooth">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth">
           <div className="max-w-7xl mx-auto">
             
             {/* Input Section - Sticky */}
