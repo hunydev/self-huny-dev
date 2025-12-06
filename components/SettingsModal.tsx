@@ -66,9 +66,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               onChange={(e) => updateSetting('dateFormat', e.target.value as Settings['dateFormat'])}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
+              <option value="iso">ISO (2025-12-06)</option>
               <option value="relative">Relative (Today, Yesterday...)</option>
-              <option value="absolute">Absolute (Dec 1, 2025)</option>
-              <option value="both">Both (Today - Dec 1, 2025)</option>
+              <option value="absolute">Absolute (Dec 6, 2025)</option>
+              <option value="both">Both (Today - Dec 6, 2025)</option>
             </select>
           </div>
 

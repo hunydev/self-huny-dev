@@ -55,6 +55,7 @@ itemsRoutes.get('/', async (c) => {
       ogTitle: row.og_title,
       ogDescription: row.og_description,
       tags: row.tag_ids ? row.tag_ids.split(',') : [],
+      isFavorite: row.is_favorite === 1,
       createdAt: row.created_at,
     }));
 
@@ -97,6 +98,7 @@ itemsRoutes.get('/:id', async (c) => {
       ogTitle: item.og_title,
       ogDescription: item.og_description,
       tags: item.tag_ids ? (item.tag_ids as string).split(',') : [],
+      isFavorite: item.is_favorite === 1,
       createdAt: item.created_at,
     });
   } catch (error) {
@@ -190,6 +192,7 @@ itemsRoutes.post('/', async (c) => {
       ogTitle,
       ogDescription,
       tags: tags || [], 
+      isFavorite: false,
       createdAt: now 
     }, 201);
   } catch (error) {
@@ -204,10 +207,10 @@ itemsRoutes.put('/:id', async (c) => {
 
   try {
     const body = await c.req.json();
-    const { content, title, tags } = body;
+    const { content, title, tags, isFavorite } = body;
 
-    // Only update content/title if they are provided
-    if (content !== undefined || title !== undefined) {
+    // Only update content/title/isFavorite if they are provided
+    if (content !== undefined || title !== undefined || isFavorite !== undefined) {
       const updates: string[] = [];
       const params: any[] = [];
       
@@ -218,6 +221,10 @@ itemsRoutes.put('/:id', async (c) => {
       if (title !== undefined) {
         updates.push('title = ?');
         params.push(title || null);
+      }
+      if (isFavorite !== undefined) {
+        updates.push('is_favorite = ?');
+        params.push(isFavorite ? 1 : 0);
       }
       
       if (updates.length > 0) {

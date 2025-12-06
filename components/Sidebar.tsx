@@ -10,13 +10,14 @@ import {
   Tag as TagIcon,
   X,
   Plus,
-  Search
+  Search,
+  Star
 } from 'lucide-react';
 import { NavItem, ItemType, Tag, Item } from '../types';
 
 interface SidebarProps {
-  activeFilter: ItemType | 'all';
-  onFilterChange: (type: ItemType | 'all') => void;
+  activeFilter: ItemType | 'all' | 'favorites';
+  onFilterChange: (type: ItemType | 'all' | 'favorites') => void;
   activeTagFilter: string | null;
   onTagFilterChange: (tagId: string | null) => void;
   tags: Tag[];
@@ -50,6 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems: NavItem[] = [
     { id: 'all', label: 'All', icon: <LayoutGrid size={18} />, filterType: 'all' },
+    { id: 'favorites', label: 'Favorites', icon: <Star size={18} />, filterType: 'favorites' as any },
     { id: 'text', label: 'Text', icon: <FileText size={18} />, filterType: ItemType.TEXT },
     { id: 'link', label: 'Links', icon: <LinkIcon size={18} />, filterType: ItemType.LINK },
     { id: 'image', label: 'Images', icon: <ImageIcon size={18} />, filterType: ItemType.IMAGE },

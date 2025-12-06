@@ -1,21 +1,24 @@
 import React, { useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import { useToast } from '../contexts/ToastContext';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface FeedItemProps {
   item: Item;
   tags: Tag[];
   onDelete: (id: string) => void;
   onClick: () => void;
+  onToggleFavorite: (id: string, isFavorite: boolean) => void;
   compact?: boolean;
 }
 
-const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, compact = false }) => {
+const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onToggleFavorite, compact = false }) => {
   const { showToast } = useToast();
+  const { settings } = useSettings();
 
   // Get file URL from R2
   const fileUrl = useMemo(() => {
@@ -56,6 +59,19 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
     e.stopPropagation();
     onDelete(item.id);
   };
+
+  const handleToggleFavorite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleFavorite(item.id, !item.isFavorite);
+  };
+
+  // Format date based on settings
+  const formattedDate = useMemo(() => {
+    if (settings.dateFormat === 'iso') {
+      return format(item.createdAt, 'yyyy-MM-dd HH:mm');
+    }
+    return format(item.createdAt, 'MMM d, h:mm a');
+  }, [item.createdAt, settings.dateFormat]);
 
   const renderThumbnail = () => {
     switch (item.type) {
@@ -243,9 +259,16 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, comp
 
       {/* Footer / Actions */}
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
-        <span className="text-[10px] font-medium">{format(item.createdAt, 'MMM d, h:mm a')}</span>
+        <span className="text-[10px] font-medium">{formattedDate}</span>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+          <button 
+            onClick={handleToggleFavorite} 
+            className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`} 
+            title={item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
+          </button>
           {item.fileKey ? (
             <button onClick={handleDownload} className="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="Download">
               <Download size={14} />

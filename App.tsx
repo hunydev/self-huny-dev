@@ -19,7 +19,7 @@ type ShareStatus = 'success' | 'error' | 'pending' | null;
 const AuthenticatedContent: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [activeFilter, setActiveFilter] = useState<ItemType | 'all'>('all');
+  const [activeFilter, setActiveFilter] = useState<ItemType | 'all' | 'favorites'>('all');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -242,12 +242,33 @@ const AuthenticatedContent: React.FC = () => {
     }
   };
 
+  const handleToggleFavorite = async (itemId: string, isFavorite: boolean) => {
+    try {
+      await db.toggleFavorite(itemId, isFavorite);
+      setItems(prev => prev.map(item => 
+        item.id === itemId ? { ...item, isFavorite } : item
+      ));
+      // Update the selected item if it's the one being edited
+      if (selectedItem?.id === itemId) {
+        setSelectedItem(prev => prev ? { ...prev, isFavorite } : null);
+      }
+      showToast(isFavorite ? '즐겨찾기에 추가되었습니다' : '즐겨찾기에서 제거되었습니다', 'success');
+    } catch (err) {
+      console.error("Failed to toggle favorite", err);
+      showToast('즐겨찾기 변경에 실패했습니다', 'error');
+    }
+  };
+
   // Filtered items based on type, tag, and search
   const filteredItems = useMemo(() => {
     let result = items;
     
+    // Filter by favorites
+    if (activeFilter === 'favorites') {
+      result = result.filter(item => item.isFavorite);
+    }
     // Filter by type
-    if (activeFilter !== 'all') {
+    else if (activeFilter !== 'all') {
       result = result.filter(item => item.type === activeFilter);
     }
     
@@ -273,6 +294,7 @@ const AuthenticatedContent: React.FC = () => {
   const itemCounts = useMemo(() => {
     const counts: Record<string, number> = {
       all: items.length,
+      favorites: items.filter(i => i.isFavorite).length,
       [ItemType.TEXT]: items.filter(i => i.type === ItemType.TEXT).length,
       [ItemType.LINK]: items.filter(i => i.type === ItemType.LINK).length,
       [ItemType.IMAGE]: items.filter(i => i.type === ItemType.IMAGE).length,
@@ -464,6 +486,7 @@ const AuthenticatedContent: React.FC = () => {
                 tags={tags} 
                 onDelete={handleDeleteItem}
                 onItemClick={setSelectedItem}
+                onToggleFavorite={handleToggleFavorite}
               />
             </div>
           </div>

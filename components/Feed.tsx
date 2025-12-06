@@ -9,9 +9,10 @@ interface FeedProps {
   tags: Tag[];
   onDelete: (id: string) => void;
   onItemClick: (item: Item) => void;
+  onToggleFavorite: (id: string, isFavorite: boolean) => void;
 }
 
-const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick }) => {
+const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggleFavorite }) => {
   const { settings } = useSettings();
 
   // Group items based on settings
@@ -48,20 +49,29 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick }) => {
     const date = new Date(dateStr);
     
     if (settings.groupBy === 'month') {
+      if (settings.dateFormat === 'iso') {
+        return format(date, 'yyyy-MM');
+      }
       return format(date, 'MMMM yyyy');
     }
     
     if (settings.groupBy === 'week') {
       const weekEnd = new Date(date);
       weekEnd.setDate(weekEnd.getDate() + 6);
+      if (settings.dateFormat === 'iso') {
+        return `${format(date, 'yyyy-MM-dd')} ~ ${format(weekEnd, 'yyyy-MM-dd')}`;
+      }
       return `${format(date, 'MMM d')} - ${format(weekEnd, 'MMM d, yyyy')}`;
     }
     
     // Day grouping
     const relativeLabel = isToday(date) ? 'Today' : isYesterday(date) ? 'Yesterday' : null;
     const absoluteLabel = format(date, 'MMMM d, yyyy');
+    const isoLabel = format(date, 'yyyy-MM-dd');
     
     switch (settings.dateFormat) {
+      case 'iso':
+        return isoLabel;
       case 'absolute':
         return absoluteLabel;
       case 'both':
@@ -115,6 +125,7 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick }) => {
                 tags={tags} 
                 onDelete={onDelete}
                 onClick={() => onItemClick(item)}
+                onToggleFavorite={onToggleFavorite}
                 compact={settings.compactMode}
               />
             ))}

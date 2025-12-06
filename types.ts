@@ -26,6 +26,7 @@ export interface Item {
   ogTitle?: string; // Open Graph title
   ogDescription?: string; // Open Graph description
   tags: string[]; // Tag IDs
+  isFavorite: boolean; // Favorite flag
   createdAt: number;
 }
 
@@ -33,5 +34,5 @@ export interface NavItem {
   id: string;
   label: string;
   icon: React.ReactNode;
-  filterType?: ItemType | 'all';
+  filterType?: ItemType | 'all' | 'favorites';
 }

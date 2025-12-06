@@ -15,6 +15,7 @@ interface ApiItem {
   ogTitle?: string;
   ogDescription?: string;
   tags: string[];
+  isFavorite: boolean;
   createdAt: number;
 }
 
@@ -45,6 +46,7 @@ const transformItem = (apiItem: ApiItem): Item => ({
   ogTitle: apiItem.ogTitle,
   ogDescription: apiItem.ogDescription,
   tags: apiItem.tags || [],
+  isFavorite: apiItem.isFavorite || false,
   createdAt: apiItem.createdAt,
 });
 
@@ -196,6 +198,23 @@ export const updateItemTags = async (itemId: string, tagIds: string[]): Promise<
 
   if (!response.ok) {
     throw new Error('Failed to update item tags');
+  }
+};
+
+// Toggle item favorite status
+export const toggleFavorite = async (itemId: string, isFavorite: boolean): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      isFavorite,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to toggle favorite');
   }
 };
 

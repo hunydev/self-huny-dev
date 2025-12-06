@@ -338,14 +338,28 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env)
       const id = crypto.randomUUID();
       const now = Date.now();
       
-      // Parse OG metadata for link items
+      // Parse OG metadata for link items or text containing URLs
       let ogImage: string | null = null;
       let ogTitle: string | null = null;
       let ogDescription: string | null = null;
       
+      let urlToParse: string | null = null;
+      
       if (type === 'link') {
+        urlToParse = content;
+      } else if (type === 'text') {
+        // Extract first URL from text content
+        const urlRegex = /(?:https?:\/\/|www\.)[^\s<>"{}|\\^`[\]]+/gi;
+        const match = content.match(urlRegex);
+        if (match && match.length > 0) {
+          urlToParse = match[0].startsWith('www.') ? `https://${match[0]}` : match[0];
+          console.log('[Share Target Direct] Found URL in text:', urlToParse);
+        }
+      }
+      
+      if (urlToParse) {
         try {
-          const ogData = await parseOgMetadata(content);
+          const ogData = await parseOgMetadata(urlToParse);
           ogImage = ogData.ogImage || null;
           ogTitle = ogData.ogTitle || null;
           ogDescription = ogData.ogDescription || null;
@@ -522,14 +536,27 @@ async function processShareData(data: ParsedMultipart, requestUrl: string, env: 
     const id = crypto.randomUUID();
     const now = Date.now();
     
-    // Parse OG metadata for link items
+    // Parse OG metadata for link items or text containing URLs
     let ogImage: string | null = null;
     let ogTitle: string | null = null;
     let ogDescription: string | null = null;
     
+    let urlToParse: string | null = null;
+    
     if (type === 'link') {
+      urlToParse = content;
+    } else if (type === 'text') {
+      // Extract first URL from text content
+      const urlRegex = /(?:https?:\/\/|www\.)[^\s<>"{}|\\^`[\]]+/gi;
+      const match = content.match(urlRegex);
+      if (match && match.length > 0) {
+        urlToParse = match[0].startsWith('www.') ? `https://${match[0]}` : match[0];
+      }
+    }
+    
+    if (urlToParse) {
       try {
-        const ogData = await parseOgMetadata(content);
+        const ogData = await parseOgMetadata(urlToParse);
         ogImage = ogData.ogImage || null;
         ogTitle = ogData.ogTitle || null;
         ogDescription = ogData.ogDescription || null;

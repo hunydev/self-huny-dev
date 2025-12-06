@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 export interface Settings {
   gridColumns: 2 | 3 | 4 | 5 | 6;
-  dateFormat: 'relative' | 'absolute' | 'both';
+  dateFormat: 'relative' | 'absolute' | 'both' | 'iso';
   groupBy: 'day' | 'week' | 'month';
   showItemCount: boolean;
   compactMode: boolean;
@@ -11,7 +11,7 @@ export interface Settings {
 
 const defaultSettings: Settings = {
   gridColumns: 4,
-  dateFormat: 'relative',
+  dateFormat: 'iso',
   groupBy: 'day',
   showItemCount: true,
   compactMode: false,
