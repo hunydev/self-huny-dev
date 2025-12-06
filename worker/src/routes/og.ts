@@ -10,9 +10,128 @@ interface OgMetadata {
 }
 
 /**
+ * Check if URL is a YouTube video and extract video ID
+ */
+function getYouTubeVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/**
+ * Fetch YouTube metadata via oEmbed API
+ */
+async function fetchYouTubeMetadata(videoId: string): Promise<OgMetadata> {
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+    const response = await fetch(oembedUrl, {
+      headers: { 'Accept': 'application/json' },
+    });
+    
+    if (!response.ok) {
+      console.log('[OG Parser] YouTube oEmbed failed:', response.status);
+      return {};
+    }
+    
+    const data = await response.json() as { 
+      title?: string; 
+      thumbnail_url?: string; 
+      author_name?: string;
+    };
+    
+    return {
+      ogTitle: data.title,
+      ogImage: data.thumbnail_url,
+      ogDescription: data.author_name ? `by ${data.author_name}` : undefined,
+    };
+  } catch (error) {
+    console.error('[OG Parser] YouTube oEmbed error:', error);
+    return {};
+  }
+}
+
+/**
+ * Check if URL is a Twitter/X post
+ */
+function getTwitterPostInfo(url: string): { username: string; postId: string } | null {
+  const pattern = /(?:twitter\.com|x\.com)\/([^\/]+)\/status\/(\d+)/;
+  const match = url.match(pattern);
+  if (match) {
+    return { username: match[1], postId: match[2] };
+  }
+  return null;
+}
+
+/**
+ * Check if URL is a Vimeo video
+ */
+function getVimeoVideoId(url: string): string | null {
+  const pattern = /vimeo\.com\/(?:video\/)?(\d+)/;
+  const match = url.match(pattern);
+  return match ? match[1] : null;
+}
+
+/**
+ * Fetch Vimeo metadata via oEmbed API
+ */
+async function fetchVimeoMetadata(videoId: string): Promise<OgMetadata> {
+  try {
+    const oembedUrl = `https://vimeo.com/api/oembed.json?url=https://vimeo.com/${videoId}`;
+    const response = await fetch(oembedUrl, {
+      headers: { 'Accept': 'application/json' },
+    });
+    
+    if (!response.ok) return {};
+    
+    const data = await response.json() as {
+      title?: string;
+      thumbnail_url?: string;
+      author_name?: string;
+      description?: string;
+    };
+    
+    return {
+      ogTitle: data.title,
+      ogImage: data.thumbnail_url,
+      ogDescription: data.description || (data.author_name ? `by ${data.author_name}` : undefined),
+    };
+  } catch (error) {
+    console.error('[OG Parser] Vimeo oEmbed error:', error);
+    return {};
+  }
+}
+
+/**
  * Parse Open Graph metadata from a URL
  */
 async function parseOgMetadata(url: string): Promise<OgMetadata> {
+  // Try oEmbed for known platforms first (they often block regular scraping)
+  const youtubeId = getYouTubeVideoId(url);
+  if (youtubeId) {
+    console.log('[OG Parser] Detected YouTube video:', youtubeId);
+    const metadata = await fetchYouTubeMetadata(youtubeId);
+    if (metadata.ogTitle || metadata.ogImage) {
+      return metadata;
+    }
+  }
+  
+  const vimeoId = getVimeoVideoId(url);
+  if (vimeoId) {
+    console.log('[OG Parser] Detected Vimeo video:', vimeoId);
+    const metadata = await fetchVimeoMetadata(vimeoId);
+    if (metadata.ogTitle || metadata.ogImage) {
+      return metadata;
+    }
+  }
+
+  // For other URLs, try regular HTML scraping
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
@@ -20,9 +139,11 @@ async function parseOgMetadata(url: string): Promise<OgMetadata> {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Self-App/1.0)',
-        'Accept': 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
       },
+      redirect: 'follow',
     });
     
     clearTimeout(timeoutId);
@@ -39,7 +160,14 @@ async function parseOgMetadata(url: string): Promise<OgMetadata> {
     }
     
     const html = await response.text();
-    return extractOgFromHtml(html);
+    
+    // Check if we got an empty or very small response (JS-rendered pages)
+    if (html.length < 500) {
+      console.log('[OG Parser] Response too small, likely JS-rendered page');
+      return {};
+    }
+    
+    return extractOgFromHtml(html, url);
   } catch (error) {
     console.error('[OG Parser] Error fetching URL:', error);
     return {};
@@ -95,15 +223,21 @@ function extractMetaContent(html: string, propertyName: string, attributeType: '
 /**
  * Extract OG metadata from HTML string using regex
  */
-function extractOgFromHtml(html: string): OgMetadata {
+function extractOgFromHtml(html: string, baseUrl?: string): OgMetadata {
   const result: OgMetadata = {};
   
   // Limit parsing to first 50KB to avoid performance issues
   const headSection = html.substring(0, 50000);
   
   // og:image
-  const ogImage = extractMetaContent(headSection, 'og:image', 'property');
+  let ogImage = extractMetaContent(headSection, 'og:image', 'property');
   if (ogImage) {
+    // Convert relative URLs to absolute
+    if (baseUrl && !ogImage.startsWith('http')) {
+      try {
+        ogImage = new URL(ogImage, baseUrl).href;
+      } catch {}
+    }
     result.ogImage = ogImage;
   }
   
@@ -136,9 +270,16 @@ function extractOgFromHtml(html: string): OgMetadata {
   
   // Fallback to twitter:image if no og:image
   if (!result.ogImage) {
-    const twitterImage = extractMetaContent(headSection, 'twitter:image', 'name')
-      || extractMetaContent(headSection, 'twitter:image', 'property');
+    let twitterImage = extractMetaContent(headSection, 'twitter:image', 'name')
+      || extractMetaContent(headSection, 'twitter:image', 'property')
+      || extractMetaContent(headSection, 'twitter:image:src', 'name');
     if (twitterImage) {
+      // Convert relative URLs to absolute
+      if (baseUrl && !twitterImage.startsWith('http')) {
+        try {
+          twitterImage = new URL(twitterImage, baseUrl).href;
+        } catch {}
+      }
       result.ogImage = twitterImage;
     }
   }
@@ -158,6 +299,21 @@ function extractOgFromHtml(html: string): OgMetadata {
       || extractMetaContent(headSection, 'twitter:description', 'property');
     if (twitterDesc) {
       result.ogDescription = decodeHtmlEntities(twitterDesc);
+    }
+  }
+  
+  // Last resort: try to find any image in link tags (favicon, apple-touch-icon)
+  if (!result.ogImage) {
+    const linkImageMatch = headSection.match(/<link[^>]*rel=["'](?:image_src|apple-touch-icon)[^>]*href=["']([^"']+)["'][^>]*>/i)
+      || headSection.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:image_src|apple-touch-icon)[^>]*>/i);
+    if (linkImageMatch) {
+      let linkImage = linkImageMatch[1];
+      if (baseUrl && !linkImage.startsWith('http')) {
+        try {
+          linkImage = new URL(linkImage, baseUrl).href;
+        } catch {}
+      }
+      result.ogImage = linkImage;
     }
   }
   
