@@ -16,6 +16,7 @@ function getYouTubeVideoId(url: string): string | null {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
     /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/,
   ];
   
   for (const pattern of patterns) {
@@ -29,15 +30,30 @@ function getYouTubeVideoId(url: string): string | null {
  * Fetch YouTube metadata via oEmbed API
  */
 async function fetchYouTubeMetadata(videoId: string): Promise<OgMetadata> {
+  // YouTube thumbnail URL is predictable - use this as fallback
+  const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  
   try {
     const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+    console.log('[OG Parser] Fetching YouTube oEmbed:', oembedUrl);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     const response = await fetch(oembedUrl, {
+      signal: controller.signal,
       headers: { 'Accept': 'application/json' },
     });
     
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
-      console.log('[OG Parser] YouTube oEmbed failed:', response.status);
-      return {};
+      console.log('[OG Parser] YouTube oEmbed failed:', response.status, '- using fallback thumbnail');
+      return {
+        ogImage: thumbnailUrl,
+        ogTitle: undefined,
+        ogDescription: undefined,
+      };
     }
     
     const data = await response.json() as { 
@@ -46,14 +62,21 @@ async function fetchYouTubeMetadata(videoId: string): Promise<OgMetadata> {
       author_name?: string;
     };
     
+    console.log('[OG Parser] YouTube oEmbed success:', { title: data.title, hasThumb: !!data.thumbnail_url });
+    
     return {
       ogTitle: data.title,
-      ogImage: data.thumbnail_url,
+      ogImage: data.thumbnail_url || thumbnailUrl,
       ogDescription: data.author_name ? `by ${data.author_name}` : undefined,
     };
   } catch (error) {
-    console.error('[OG Parser] YouTube oEmbed error:', error);
-    return {};
+    console.error('[OG Parser] YouTube oEmbed error:', error, '- using fallback thumbnail');
+    // Return fallback thumbnail even if oEmbed fails
+    return {
+      ogImage: thumbnailUrl,
+      ogTitle: undefined,
+      ogDescription: undefined,
+    };
   }
 }
 
@@ -84,9 +107,16 @@ function getVimeoVideoId(url: string): string | null {
 async function fetchVimeoMetadata(videoId: string): Promise<OgMetadata> {
   try {
     const oembedUrl = `https://vimeo.com/api/oembed.json?url=https://vimeo.com/${videoId}`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const response = await fetch(oembedUrl, {
+      signal: controller.signal,
       headers: { 'Accept': 'application/json' },
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) return {};
     
@@ -112,8 +142,11 @@ async function fetchVimeoMetadata(videoId: string): Promise<OgMetadata> {
  * Parse Open Graph metadata from a URL
  */
 async function parseOgMetadata(url: string): Promise<OgMetadata> {
+  console.log('[OG Parser] parseOgMetadata called with URL:', url);
+  
   // Try oEmbed for known platforms first (they often block regular scraping)
   const youtubeId = getYouTubeVideoId(url);
+  console.log('[OG Parser] YouTube ID check result:', youtubeId);
   if (youtubeId) {
     console.log('[OG Parser] Detected YouTube video:', youtubeId);
     const metadata = await fetchYouTubeMetadata(youtubeId);
