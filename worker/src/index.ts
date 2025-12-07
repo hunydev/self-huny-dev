@@ -250,7 +250,7 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
   return Response.redirect(new URL('/?shared=error&reason=parse_failed', request.url).toString(), 303);
 }
 
-// Process parsed formData
+// Process parsed formData - redirect to share choice page
 async function processFormData(formData: FormData, requestUrl: string, env: Env): Promise<Response> {
   const title = formData.get('title') as string;
   const text = formData.get('text') as string;
@@ -280,7 +280,7 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env)
     filesCount: allFiles.length,
   });
 
-  // Handle file uploads
+  // Handle file uploads - files go directly to storage (no choice for files)
   if (allFiles.length > 0) {
     const file = allFiles[0];
     const originalName = typeof file.name === 'string' && file.name.trim().length > 0
@@ -327,59 +327,19 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env)
     }
   }
 
-  // Handle text/link share
+  // Handle text/link share - redirect to choice page with data
   const content = urlParam || text || title || '';
-  const type = /^https?:\/\//i.test(content.trim()) ? 'link' : 'text';
   
-  console.log('[Share Target Direct] Processing as text/link:', { content, type });
+  console.log('[Share Target Direct] Processing as text/link:', { content });
 
   if (content) {
-    try {
-      const id = crypto.randomUUID();
-      const now = Date.now();
-      
-      // Parse OG metadata for link items or text containing URLs
-      let ogImage: string | null = null;
-      let ogTitle: string | null = null;
-      let ogDescription: string | null = null;
-      
-      let urlToParse: string | null = null;
-      
-      if (type === 'link') {
-        urlToParse = content;
-      } else if (type === 'text') {
-        // Extract first URL from text content
-        const urlRegex = /(?:https?:\/\/|www\.)[^\s<>"{}|\\^`[\]]+/gi;
-        const match = content.match(urlRegex);
-        if (match && match.length > 0) {
-          urlToParse = match[0].startsWith('www.') ? `https://${match[0]}` : match[0];
-          console.log('[Share Target Direct] Found URL in text:', urlToParse);
-        }
-      }
-      
-      if (urlToParse) {
-        try {
-          const ogData = await parseOgMetadata(urlToParse);
-          ogImage = ogData.ogImage || null;
-          ogTitle = ogData.ogTitle || null;
-          ogDescription = ogData.ogDescription || null;
-          console.log('[Share Target Direct] OG metadata parsed:', { ogImage: !!ogImage, ogTitle, ogDescription: !!ogDescription });
-        } catch (ogError) {
-          console.error('[Share Target Direct] Failed to parse OG metadata:', ogError);
-        }
-      }
-      
-      await env.DB.prepare(`
-        INSERT INTO items (id, type, content, title, og_image, og_title, og_description, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(id, type, content, title || null, ogImage, ogTitle, ogDescription, now).run();
-
-      console.log('[Share Target Direct] Text/link saved, id:', id);
-      return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
-    } catch (error) {
-      console.error('[Share Target Direct] Text/link save failed:', error);
-      return Response.redirect(new URL('/?shared=error', requestUrl).toString(), 303);
-    }
+    // Encode the share data in URL params for the choice page
+    const params = new URLSearchParams();
+    params.set('share_mode', 'choice');
+    params.set('share_content', content);
+    if (title) params.set('share_title', title);
+    
+    return Response.redirect(new URL(`/?${params.toString()}`, requestUrl).toString(), 303);
   }
 
   console.log('[Share Target Direct] No content to save');

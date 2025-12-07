@@ -14,6 +14,7 @@ interface InputAreaProps {
 
 export interface InputAreaHandle {
   focus: () => void;
+  setShareData: (content: string, title?: string) => void;
 }
 
 const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus, onAddTag, onDeleteTag }, ref) => {
@@ -56,13 +57,22 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setAutoMatchedTags(newAutoMatched);
   }, [text, title, availableTags]);
 
-  // Expose focus method to parent
+  // Expose focus and setShareData methods to parent
   useImperativeHandle(ref, () => ({
     focus: () => {
       if (textareaRef.current) {
         textareaRef.current.focus();
         setIsExpanded(true);
       }
+    },
+    setShareData: (content: string, shareTitle?: string) => {
+      setText(content);
+      if (shareTitle) setTitle(shareTitle);
+      setIsExpanded(true);
+      // Focus after state update
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
     }
   }));
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw, ArrowUp } from 'lucide-react';
+import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw, ArrowUp, Zap, Edit3 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import InputArea, { InputAreaHandle } from './components/InputArea';
 import Feed from './components/Feed';
@@ -14,6 +14,11 @@ import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
 
 type ShareStatus = 'success' | 'error' | 'pending' | null;
+
+interface ShareChoiceData {
+  content: string;
+  title?: string;
+}
 
 // Authenticated app content
 const AuthenticatedContent: React.FC = () => {
@@ -31,6 +36,7 @@ const AuthenticatedContent: React.FC = () => {
   const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [shareChoiceData, setShareChoiceData] = useState<ShareChoiceData | null>(null);
   const inputAreaRef = useRef<InputAreaHandle>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -155,6 +161,9 @@ const AuthenticatedContent: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const shared = params.get('shared') as ShareStatus;
     const action = params.get('action');
+    const shareMode = params.get('share_mode');
+    const shareContent = params.get('share_content');
+    const shareTitle = params.get('share_title');
     
     if (shared) {
       setShareStatus(shared);
@@ -171,6 +180,16 @@ const AuthenticatedContent: React.FC = () => {
       }
     }
     
+    // Handle share choice mode
+    if (shareMode === 'choice' && shareContent) {
+      setShareChoiceData({
+        content: shareContent,
+        title: shareTitle || undefined,
+      });
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
     // Handle "add" action from app shortcut
     if (action === 'add') {
       setShouldAutoFocus(true);
@@ -178,6 +197,74 @@ const AuthenticatedContent: React.FC = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [loadData]);
+
+  // Auto-match tags based on keywords
+  const getAutoMatchedTags = useCallback((content: string, title?: string): string[] => {
+    const textToCheck = `${content} ${title || ''}`.toLowerCase();
+    const matchedTagIds: string[] = [];
+    
+    for (const tag of tags) {
+      if (tag.autoKeywords && tag.autoKeywords.length > 0) {
+        for (const keyword of tag.autoKeywords) {
+          if (keyword && textToCheck.includes(keyword.toLowerCase())) {
+            matchedTagIds.push(tag.id);
+            break;
+          }
+        }
+      }
+    }
+    
+    return matchedTagIds;
+  }, [tags]);
+
+  // Handle share choice - instant save
+  const handleShareInstant = useCallback(async () => {
+    if (!shareChoiceData) return;
+    
+    const { content, title } = shareChoiceData;
+    const type = /^https?:\/\//i.test(content.trim()) ? ItemType.LINK : ItemType.TEXT;
+    const autoTags = getAutoMatchedTags(content, title);
+    
+    try {
+      const newItem = await db.saveItem({
+        type,
+        content,
+        title,
+        tags: autoTags,
+        isFavorite: false,
+      });
+      setItems(prev => [newItem, ...prev]);
+      setShareChoiceData(null);
+      
+      if (autoTags.length > 0) {
+        const matchedTagNames = tags
+          .filter(t => autoTags.includes(t.id))
+          .map(t => t.name)
+          .join(', ');
+        showToast(`저장 완료 (자동 태그: ${matchedTagNames})`, 'success');
+      } else {
+        showToast('저장 완료', 'success');
+      }
+    } catch (err) {
+      console.error("Failed to save shared item", err);
+      showToast('저장 실패', 'error');
+      setShareChoiceData(null);
+    }
+  }, [shareChoiceData, getAutoMatchedTags, tags, showToast]);
+
+  // Handle share choice - edit mode
+  const handleShareEdit = useCallback(() => {
+    if (!shareChoiceData || !inputAreaRef.current) return;
+    
+    // Pass data to InputArea via a special method
+    inputAreaRef.current.setShareData(shareChoiceData.content, shareChoiceData.title);
+    setShareChoiceData(null);
+  }, [shareChoiceData]);
+
+  // Cancel share choice
+  const handleShareCancel = useCallback(() => {
+    setShareChoiceData(null);
+  }, []);
 
   const handleSaveItem = async (draft: Omit<Item, 'id' | 'createdAt'>) => {
     try {
@@ -368,6 +455,57 @@ const AuthenticatedContent: React.FC = () => {
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* Share notification */}
       <ShareNotification />
+
+      {/* Share choice modal */}
+      {shareChoiceData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-800">공유 방식 선택</h3>
+              <p className="text-sm text-slate-500 mt-1 line-clamp-2">
+                {shareChoiceData.content}
+              </p>
+            </div>
+            
+            <div className="p-3 space-y-2">
+              <button
+                onClick={handleShareInstant}
+                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-indigo-50 transition-colors text-left group"
+              >
+                <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 group-hover:bg-indigo-200 transition-colors">
+                  <Zap size={24} className="text-indigo-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-800">즉시</div>
+                  <div className="text-sm text-slate-500">바로 저장합니다</div>
+                </div>
+              </button>
+              
+              <button
+                onClick={handleShareEdit}
+                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-amber-50 transition-colors text-left group"
+              >
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center shrink-0 group-hover:bg-amber-200 transition-colors">
+                  <Edit3 size={24} className="text-amber-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-800">편집</div>
+                  <div className="text-sm text-slate-500">저장 전 수정합니다</div>
+                </div>
+              </button>
+            </div>
+            
+            <div className="p-3 border-t border-slate-100">
+              <button
+                onClick={handleShareCancel}
+                className="w-full py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Offline indicator */}
       {!isOnline && (
