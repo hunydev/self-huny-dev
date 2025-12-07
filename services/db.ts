@@ -23,6 +23,7 @@ interface ApiTag {
   id: string;
   name: string;
   color?: string;
+  autoKeywords?: string[];
 }
 
 interface UploadResult {
@@ -55,6 +56,7 @@ const transformTag = (apiTag: ApiTag): Tag => ({
   id: apiTag.id,
   name: apiTag.name,
   color: apiTag.color,
+  autoKeywords: apiTag.autoKeywords || [],
 });
 
 // Get all items
@@ -162,6 +164,7 @@ export const saveTag = async (tag: Tag): Promise<Tag> => {
     body: JSON.stringify({
       name: tag.name,
       color: tag.color,
+      autoKeywords: tag.autoKeywords || [],
     }),
   });
 
@@ -171,6 +174,27 @@ export const saveTag = async (tag: Tag): Promise<Tag> => {
 
   const data: ApiTag = await response.json();
   return transformTag(data);
+};
+
+// Update tag
+export const updateTag = async (tag: Tag): Promise<Tag> => {
+  const response = await fetch(`${API_BASE}/tags/${tag.id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: tag.name,
+      color: tag.color,
+      autoKeywords: tag.autoKeywords || [],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update tag');
+  }
+
+  return tag;
 };
 
 // Delete tag

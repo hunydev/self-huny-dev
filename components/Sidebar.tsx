@@ -11,7 +11,8 @@ import {
   X,
   Plus,
   Search,
-  Star
+  Star,
+  Edit2
 } from 'lucide-react';
 import { NavItem, ItemType, Tag, Item } from '../types';
 
@@ -21,7 +22,8 @@ interface SidebarProps {
   activeTagFilter: string | null;
   onTagFilterChange: (tagId: string | null) => void;
   tags: Tag[];
-  onAddTag: (name: string) => void;
+  onAddTag: (name: string, autoKeywords?: string[]) => void;
+  onUpdateTag: (tag: Tag) => void;
   onDeleteTag: (id: string) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
@@ -37,7 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeTagFilter,
   onTagFilterChange,
   tags, 
-  onAddTag, 
+  onAddTag,
+  onUpdateTag,
   onDeleteTag,
   isOpen,
   setIsOpen,
@@ -48,6 +51,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [newTag, setNewTag] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [editTagName, setEditTagName] = useState('');
+  const [editTagKeywords, setEditTagKeywords] = useState('');
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
 
   const navItems: NavItem[] = [
     { id: 'all', label: 'All', icon: <LayoutGrid size={18} />, filterType: 'all' },
@@ -59,10 +67,54 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'file', label: 'Files', icon: <FileIcon size={18} />, filterType: ItemType.FILE },
   ];
 
+  const openTagModal = (tag?: Tag) => {
+    if (tag) {
+      setEditingTag(tag);
+      setEditTagName(tag.name);
+      setEditTagKeywords((tag.autoKeywords || []).join(', '));
+      setIsCreatingTag(false);
+    } else {
+      setEditingTag(null);
+      setEditTagName('');
+      setEditTagKeywords('');
+      setIsCreatingTag(true);
+    }
+    setShowTagModal(true);
+  };
+
+  const closeTagModal = () => {
+    setShowTagModal(false);
+    setEditingTag(null);
+    setEditTagName('');
+    setEditTagKeywords('');
+    setIsCreatingTag(false);
+  };
+
+  const handleSaveTag = () => {
+    if (!editTagName.trim()) return;
+
+    const keywords = editTagKeywords
+      .split(',')
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+
+    if (isCreatingTag) {
+      onAddTag(editTagName.trim(), keywords.length > 0 ? keywords : undefined);
+    } else if (editingTag) {
+      onUpdateTag({
+        ...editingTag,
+        name: editTagName.trim(),
+        autoKeywords: keywords,
+      });
+    }
+    closeTagModal();
+  };
+
   const handleAddTag = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTag.trim()) {
-      onAddTag(newTag.trim());
+      openTagModal();
+      setEditTagName(newTag.trim());
       setNewTag('');
       setShowTagInput(false);
     }
@@ -191,6 +243,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full text-sm px-2 py-1 border border-indigo-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     placeholder="New label..."
                     onBlur={() => !newTag && setShowTagInput(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newTag.trim()) {
+                        e.preventDefault();
+                        openTagModal();
+                        setEditTagName(newTag.trim());
+                        setNewTag('');
+                        setShowTagInput(false);
+                      }
+                    }}
                   />
                 </form>
               )}
@@ -210,12 +271,24 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <div className="flex items-center gap-3 text-sm font-medium">
                         <TagIcon size={16} className={activeTagFilter === tag.id ? 'text-indigo-500' : 'text-slate-400'} />
-                        {tag.name}
+                        <span className="truncate">{tag.name}</span>
+                        {tag.autoKeywords && tag.autoKeywords.length > 0 && (
+                          <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">auto</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
                           {tagCount}
                         </span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openTagModal(tag);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-indigo-500 transition-opacity"
+                        >
+                          <Edit2 size={12} />
+                        </button>
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -245,6 +318,73 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Tag Edit Modal */}
+      {showTagModal && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-800">
+                {isCreatingTag ? 'New Label' : 'Edit Label'}
+              </h3>
+              <button
+                onClick={closeTagModal}
+                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Label Name
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={editTagName}
+                  onChange={(e) => setEditTagName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Enter label name..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Auto-classification Keywords
+                </label>
+                <textarea
+                  value={editTagKeywords}
+                  onChange={(e) => setEditTagKeywords(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  placeholder="Enter keywords separated by commas (e.g., youtube.com, youtu.be)"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Items containing these keywords will be automatically tagged.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 p-4 border-t border-slate-100">
+              <button
+                onClick={closeTagModal}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveTag}
+                disabled={!editTagName.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreatingTag ? 'Create' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -18,6 +18,7 @@ tagsRoutes.get('/', async (c) => {
       id: row.id,
       name: row.name,
       color: row.color,
+      autoKeywords: row.auto_keywords ? JSON.parse(row.auto_keywords) : [],
       itemCount: row.item_count,
       createdAt: row.created_at,
     }));
@@ -33,7 +34,7 @@ tagsRoutes.get('/', async (c) => {
 tagsRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
-    const { name, color } = body;
+    const { name, color, autoKeywords } = body;
 
     if (!name || !name.trim()) {
       return c.json({ error: 'Tag name is required' }, 400);
@@ -41,13 +42,16 @@ tagsRoutes.post('/', async (c) => {
 
     const id = crypto.randomUUID();
     const now = Date.now();
+    const autoKeywordsJson = autoKeywords && autoKeywords.length > 0 
+      ? JSON.stringify(autoKeywords) 
+      : null;
 
     await c.env.DB.prepare(`
-      INSERT INTO tags (id, name, color, created_at)
-      VALUES (?, ?, ?, ?)
-    `).bind(id, name.trim(), color || null, now).run();
+      INSERT INTO tags (id, name, color, auto_keywords, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(id, name.trim(), color || null, autoKeywordsJson, now).run();
 
-    return c.json({ id, name: name.trim(), color, createdAt: now }, 201);
+    return c.json({ id, name: name.trim(), color, autoKeywords: autoKeywords || [], createdAt: now }, 201);
   } catch (error: any) {
     if (error.message?.includes('UNIQUE constraint failed')) {
       return c.json({ error: 'Tag with this name already exists' }, 409);
@@ -63,17 +67,21 @@ tagsRoutes.put('/:id', async (c) => {
 
   try {
     const body = await c.req.json();
-    const { name, color } = body;
+    const { name, color, autoKeywords } = body;
 
     if (!name || !name.trim()) {
       return c.json({ error: 'Tag name is required' }, 400);
     }
 
-    await c.env.DB.prepare(`
-      UPDATE tags SET name = ?, color = ? WHERE id = ?
-    `).bind(name.trim(), color || null, id).run();
+    const autoKeywordsJson = autoKeywords && autoKeywords.length > 0 
+      ? JSON.stringify(autoKeywords) 
+      : null;
 
-    return c.json({ success: true });
+    await c.env.DB.prepare(`
+      UPDATE tags SET name = ?, color = ?, auto_keywords = ? WHERE id = ?
+    `).bind(name.trim(), color || null, autoKeywordsJson, id).run();
+
+    return c.json({ success: true, name: name.trim(), autoKeywords: autoKeywords || [] });
   } catch (error: any) {
     if (error.message?.includes('UNIQUE constraint failed')) {
       return c.json({ error: 'Tag with this name already exists' }, 409);
