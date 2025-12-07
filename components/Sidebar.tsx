@@ -12,7 +12,8 @@ import {
   Plus,
   Search,
   Star,
-  Edit2
+  Edit2,
+  Zap
 } from 'lucide-react';
 import { NavItem, ItemType, Tag, Item } from '../types';
 
@@ -22,7 +23,7 @@ interface SidebarProps {
   activeTagFilter: string | null;
   onTagFilterChange: (tagId: string | null) => void;
   tags: Tag[];
-  onAddTag: (name: string, autoKeywords?: string[]) => void;
+  onAddTag: (name: string) => void;
   onUpdateTag: (tag: Tag) => void;
   onDeleteTag: (id: string) => void;
   isOpen: boolean;
@@ -98,9 +99,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       .map(k => k.trim())
       .filter(k => k.length > 0);
 
-    if (isCreatingTag) {
-      onAddTag(editTagName.trim(), keywords.length > 0 ? keywords : undefined);
-    } else if (editingTag) {
+    if (editingTag) {
       onUpdateTag({
         ...editingTag,
         name: editTagName.trim(),
@@ -113,8 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleAddTag = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTag.trim()) {
-      openTagModal();
-      setEditTagName(newTag.trim());
+      onAddTag(newTag.trim());
       setNewTag('');
       setShowTagInput(false);
     }
@@ -243,15 +241,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full text-sm px-2 py-1 border border-indigo-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     placeholder="New label..."
                     onBlur={() => !newTag && setShowTagInput(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newTag.trim()) {
-                        e.preventDefault();
-                        openTagModal();
-                        setEditTagName(newTag.trim());
-                        setNewTag('');
-                        setShowTagInput(false);
-                      }
-                    }}
                   />
                 </form>
               )}
@@ -259,6 +248,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div className="space-y-0.5">
                 {tags.map((tag) => {
                   const tagCount = itemCounts[`tag:${tag.id}`] || 0;
+                  const hasAutoKeywords = tag.autoKeywords && tag.autoKeywords.length > 0;
                   return (
                     <div 
                       key={tag.id} 
@@ -269,12 +259,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                           : 'hover:bg-slate-50'
                       }`}
                     >
-                      <div className="flex items-center gap-3 text-sm font-medium">
-                        <TagIcon size={16} className={activeTagFilter === tag.id ? 'text-indigo-500' : 'text-slate-400'} />
-                        <span className="truncate">{tag.name}</span>
-                        {tag.autoKeywords && tag.autoKeywords.length > 0 && (
-                          <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">auto</span>
+                      <div className="flex items-center gap-2 text-sm font-medium min-w-0">
+                        {hasAutoKeywords ? (
+                          <Zap size={16} className={`shrink-0 ${activeTagFilter === tag.id ? 'text-amber-500' : 'text-amber-400'}`} title="Auto-classification enabled" />
+                        ) : (
+                          <TagIcon size={16} className={`shrink-0 ${activeTagFilter === tag.id ? 'text-indigo-500' : 'text-slate-400'}`} />
                         )}
+                        <span className="truncate">{tag.name}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">

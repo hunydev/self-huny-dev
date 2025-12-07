@@ -21,12 +21,40 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [autoMatchedTags, setAutoMatchedTags] = useState<string[]>([]); // Track which tags were auto-matched
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { settings } = useSettings();
+
+  // Auto-match tags based on keywords when text changes
+  useEffect(() => {
+    const textToCheck = `${text} ${title}`.toLowerCase();
+    const newAutoMatched: string[] = [];
+    
+    for (const tag of availableTags) {
+      if (tag.autoKeywords && tag.autoKeywords.length > 0) {
+        for (const keyword of tag.autoKeywords) {
+          if (keyword && textToCheck.includes(keyword.toLowerCase())) {
+            newAutoMatched.push(tag.id);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Add newly matched tags to selection (if not already selected)
+    // Remove previously auto-matched tags that no longer match (if they weren't manually selected)
+    setSelectedTags(prev => {
+      const manuallySelected = prev.filter(id => !autoMatchedTags.includes(id));
+      const combined = [...new Set([...manuallySelected, ...newAutoMatched])];
+      return combined;
+    });
+    
+    setAutoMatchedTags(newAutoMatched);
+  }, [text, title, availableTags]);
 
   // Expose focus method to parent
   useImperativeHandle(ref, () => ({
@@ -143,6 +171,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setTitle('');
     setFile(null);
     setSelectedTags([]);
+    setAutoMatchedTags([]);
     setIsExpanded(false);
   };
 
@@ -226,19 +255,27 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
 
           {/* Tag Selection */}
           <div className="flex flex-wrap gap-2 relative">
-            {availableTags.map(tag => (
-              <button
-                key={tag.id}
-                onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
-                className={`text-xs px-2.5 py-1 rounded-full transition-colors border ${
-                  selectedTags.includes(tag.id) 
-                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200' 
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                # {tag.name}
-              </button>
-            ))}
+            {availableTags.map(tag => {
+              const isSelected = selectedTags.includes(tag.id);
+              const isAutoMatched = autoMatchedTags.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
+                  className={`text-xs px-2.5 py-1 rounded-full transition-colors border flex items-center gap-1 ${
+                    isSelected 
+                      ? isAutoMatched
+                        ? 'bg-amber-100 text-amber-700 border-amber-300'
+                        : 'bg-indigo-100 text-indigo-700 border-indigo-200' 
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title={isAutoMatched ? 'Auto-matched by keyword' : undefined}
+                >
+                  {isAutoMatched && isSelected && <span className="text-amber-500">⚡</span>}
+                  # {tag.name}
+                </button>
+              );
+            })}
             <button 
               onClick={() => setShowTagManager(!showTagManager)}
               className={`text-xs px-2.5 py-1 transition-colors ${showTagManager ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`}

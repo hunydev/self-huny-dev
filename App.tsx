@@ -179,49 +179,11 @@ const AuthenticatedContent: React.FC = () => {
     }
   }, [loadData]);
 
-  // Auto-match tags based on keywords
-  const getAutoMatchedTags = useCallback((content: string, title?: string): string[] => {
-    const textToCheck = `${content} ${title || ''}`.toLowerCase();
-    const matchedTagIds: string[] = [];
-    
-    for (const tag of tags) {
-      if (tag.autoKeywords && tag.autoKeywords.length > 0) {
-        for (const keyword of tag.autoKeywords) {
-          if (keyword && textToCheck.includes(keyword.toLowerCase())) {
-            matchedTagIds.push(tag.id);
-            break; // Found a match for this tag, move to next
-          }
-        }
-      }
-    }
-    
-    return matchedTagIds;
-  }, [tags]);
-
   const handleSaveItem = async (draft: Omit<Item, 'id' | 'createdAt'>) => {
     try {
-      // Auto-match tags based on keywords
-      const autoMatchedTags = getAutoMatchedTags(draft.content, draft.title);
-      const existingTags = draft.tags || [];
-      const mergedTags = [...new Set([...existingTags, ...autoMatchedTags])];
-      
-      const itemWithAutoTags = {
-        ...draft,
-        tags: mergedTags,
-      };
-      
-      const newItem = await db.saveItem(itemWithAutoTags);
+      const newItem = await db.saveItem(draft);
       setItems(prev => [newItem, ...prev]);
-      
-      if (autoMatchedTags.length > 0) {
-        const matchedTagNames = tags
-          .filter(t => autoMatchedTags.includes(t.id))
-          .map(t => t.name)
-          .join(', ');
-        showToast(`아이템이 추가되었습니다 (자동 태그: ${matchedTagNames})`, 'success');
-      } else {
-        showToast('아이템이 추가되었습니다', 'success');
-      }
+      showToast('아이템이 추가되었습니다', 'success');
     } catch (err) {
       console.error("Failed to save item", err);
       showToast('아이템 추가에 실패했습니다', 'error');
@@ -239,9 +201,9 @@ const AuthenticatedContent: React.FC = () => {
     }
   };
 
-  const handleAddTag = async (name: string, autoKeywords?: string[]) => {
+  const handleAddTag = async (name: string) => {
     try {
-      const newTag: Tag = { id: crypto.randomUUID(), name, autoKeywords };
+      const newTag: Tag = { id: crypto.randomUUID(), name };
       const savedTag = await db.saveTag(newTag);
       setTags(prev => [...prev, savedTag]);
       showToast(`'${name}' 레이블이 추가되었습니다`, 'success');
