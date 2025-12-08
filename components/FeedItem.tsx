@@ -229,6 +229,78 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
     }
   };
 
+  // Compact mode render
+  if (compact) {
+    const getTypeIcon = () => {
+      switch (item.type) {
+        case ItemType.IMAGE: return <ImageIcon size={16} className="text-emerald-500" />;
+        case ItemType.VIDEO: return <Video size={16} className="text-purple-500" />;
+        case ItemType.FILE: return <FileText size={16} className="text-orange-500" />;
+        case ItemType.LINK: return <ExternalLink size={16} className="text-indigo-500" />;
+        default: return <FileText size={16} className="text-slate-400" />;
+      }
+    };
+
+    const getDisplayText = () => {
+      if (item.title) return item.title;
+      if (item.ogTitle) return item.ogTitle;
+      if (item.fileName) return item.fileName;
+      if (item.content) return item.content;
+      return 'Untitled';
+    };
+
+    return (
+      <div 
+        className="group flex items-center gap-3 px-3 py-2.5 bg-white border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+        onClick={onClick}
+      >
+        {/* Thumbnail or Icon */}
+        <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
+          {(item.type === ItemType.IMAGE && fileUrl) ? (
+            <img src={fileUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+          ) : (item.ogImage) ? (
+            <img src={item.ogImage} alt="" className="w-full h-full object-cover" loading="lazy" />
+          ) : (
+            getTypeIcon()
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-slate-800 truncate font-medium">{getDisplayText()}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] text-slate-400">{formattedDate}</span>
+            {itemTags.length > 0 && (
+              <div className="flex gap-1">
+                {itemTags.slice(0, 2).map(tag => (
+                  <span key={tag.id} className="text-[9px] px-1 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">
+                    #{tag.name}
+                  </span>
+                ))}
+                {itemTags.length > 2 && (
+                  <span className="text-[9px] text-slate-400">+{itemTags.length - 2}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-0.5 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button 
+            onClick={handleToggleFavorite} 
+            className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
+          >
+            <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
+          </button>
+          <button onClick={handleDelete} className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer"

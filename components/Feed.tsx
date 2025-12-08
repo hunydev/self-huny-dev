@@ -117,19 +117,37 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
               </span>
             )}
           </div>
-          <div className={`grid ${gridColsClass} gap-4`}>
-            {groupedItems[dateKey].map(item => (
-              <FeedItem 
-                key={item.id} 
-                item={item} 
-                tags={tags} 
-                onDelete={onDelete}
-                onClick={() => onItemClick(item)}
-                onToggleFavorite={onToggleFavorite}
-                compact={settings.compactMode}
-              />
-            ))}
-          </div>
+          {settings.compactMode ? (
+            /* Compact list view */
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              {groupedItems[dateKey].map(item => (
+                <FeedItem 
+                  key={item.id} 
+                  item={item} 
+                  tags={tags} 
+                  onDelete={onDelete}
+                  onClick={() => onItemClick(item)}
+                  onToggleFavorite={onToggleFavorite}
+                  compact={true}
+                />
+              ))}
+            </div>
+          ) : (
+            /* Grid view */
+            <div className={`grid ${gridColsClass} gap-4`}>
+              {groupedItems[dateKey].map(item => (
+                <FeedItem 
+                  key={item.id} 
+                  item={item} 
+                  tags={tags} 
+                  onDelete={onDelete}
+                  onClick={() => onItemClick(item)}
+                  onToggleFavorite={onToggleFavorite}
+                  compact={false}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>
