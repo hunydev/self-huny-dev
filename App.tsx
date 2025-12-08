@@ -587,17 +587,19 @@ const AuthenticatedContent: React.FC = () => {
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth">
           <div className="max-w-7xl mx-auto">
             
-            {/* Input Section - Sticky */}
-            <div className="sticky top-0 z-20 bg-slate-50 pt-4 lg:pt-8 pb-4 px-4 lg:px-8">
-              <div className="max-w-3xl mx-auto w-full">
-                <InputArea 
-                  ref={inputAreaRef}
-                  onSave={handleSaveItem} 
-                  availableTags={tags}
-                  autoFocus={shouldAutoFocus}
-                  onAddTag={handleAddTag}
-                  onDeleteTag={handleDeleteTag}
-                />
+            {/* Input Section - Only InputArea is sticky */}
+            <div className="pt-4 lg:pt-8 pb-4 px-4 lg:px-8">
+              <div className="max-w-3xl mx-auto w-full sticky top-4 lg:top-8 z-20">
+                <div className="shadow-lg shadow-slate-200/50 rounded-xl">
+                  <InputArea 
+                    ref={inputAreaRef}
+                    onSave={handleSaveItem} 
+                    availableTags={tags}
+                    autoFocus={shouldAutoFocus}
+                    onAddTag={handleAddTag}
+                    onDeleteTag={handleDeleteTag}
+                  />
+                </div>
               </div>
             </div>
 
