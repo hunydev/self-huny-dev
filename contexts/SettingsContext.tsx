@@ -7,6 +7,7 @@ export interface Settings {
   showItemCount: boolean;
   compactMode: boolean;
   submitShortcut: 'enter' | 'ctrl+enter';
+  imageFit: 'cover' | 'contain';
 }
 
 const defaultSettings: Settings = {
@@ -16,6 +17,7 @@ const defaultSettings: Settings = {
   showItemCount: true,
   compactMode: false,
   submitShortcut: 'ctrl+enter',
+  imageFit: 'cover',
 };
 
 interface SettingsContextType {

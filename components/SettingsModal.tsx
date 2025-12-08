@@ -124,6 +124,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </label>
           </div>
 
+          {/* Image Fit Mode */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              이미지 표시 방식
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateSetting('imageFit', 'cover')}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                  settings.imageFit === 'cover'
+                    ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
+                }`}
+              >
+                Fill (채우기)
+              </button>
+              <button
+                onClick={() => updateSetting('imageFit', 'contain')}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                  settings.imageFit === 'contain'
+                    ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
+                }`}
+              >
+                Fit (맞추기)
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-1.5">
+              {settings.imageFit === 'cover' 
+                ? '이미지를 잘라서 영역을 채웁니다' 
+                : '이미지 전체가 보이도록 맞춥니다'}
+            </p>
+          </div>
+
           {/* Submit Shortcut */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">

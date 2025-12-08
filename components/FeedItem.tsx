@@ -73,13 +73,16 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
     return format(item.createdAt, 'MMM d, h:mm a');
   }, [item.createdAt, settings.dateFormat]);
 
+  // Image fit class based on settings
+  const imageFitClass = settings.imageFit === 'contain' ? 'object-contain' : 'object-cover';
+
   const renderThumbnail = () => {
     switch (item.type) {
       case ItemType.IMAGE:
         return (
-          <div className="relative aspect-square w-full bg-slate-100 overflow-hidden">
+          <div className={`relative aspect-square w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
             {fileUrl ? (
-              <img src={fileUrl} alt={item.fileName} className="w-full h-full object-cover" loading="lazy" />
+              <img src={fileUrl} alt={item.fileName} className={`w-full h-full ${imageFitClass}`} loading="lazy" />
             ) : (
               <div className="flex items-center justify-center h-full text-slate-300">
                 <ImageIcon size={32} />
@@ -113,11 +116,11 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
           return (
             <div className="flex flex-col h-full">
               {/* OG Image */}
-              <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
+              <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
                 <img 
                   src={item.ogImage} 
                   alt={item.ogTitle || 'Link preview'} 
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full ${imageFitClass}`}
                   loading="lazy"
                   onError={(e) => {
                     // Hide image on error and show fallback
@@ -187,11 +190,11 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
               {/* OG Preview */}
               <div className="border-t border-slate-100 bg-slate-50">
                 {/* OG Image */}
-                <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
+                <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
                   <img 
                     src={item.ogImage} 
                     alt={item.ogTitle || 'Link preview'} 
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full ${imageFitClass}`}
                     loading="lazy"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
