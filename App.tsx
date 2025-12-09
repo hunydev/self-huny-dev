@@ -596,6 +596,7 @@ const AuthenticatedContent: React.FC = () => {
                   autoFocus={shouldAutoFocus}
                   onAddTag={handleAddTag}
                   onDeleteTag={handleDeleteTag}
+                  activeTagFilter={activeTagFilter}
                 />
               </div>
             </div>

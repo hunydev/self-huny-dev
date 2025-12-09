@@ -10,6 +10,7 @@ interface InputAreaProps {
   autoFocus?: boolean;
   onAddTag?: (name: string) => void;
   onDeleteTag?: (id: string) => void;
+  activeTagFilter?: string | null;
 }
 
 export interface InputAreaHandle {
@@ -17,7 +18,7 @@ export interface InputAreaHandle {
   setShareData: (content: string, title?: string) => void;
 }
 
-const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus, onAddTag, onDeleteTag }, ref) => {
+const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus, onAddTag, onDeleteTag, activeTagFilter }, ref) => {
   const [text, setText] = useState('');
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -28,6 +29,13 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [showTagManager, setShowTagManager] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-select active filter tag when it changes
+  useEffect(() => {
+    if (activeTagFilter && !selectedTags.includes(activeTagFilter)) {
+      setSelectedTags(prev => [...prev, activeTagFilter]);
+    }
+  }, [activeTagFilter]);
   const { settings } = useSettings();
 
   // Auto-match tags based on keywords when text changes
