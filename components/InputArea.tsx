@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2 } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestMetadata } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
@@ -28,6 +28,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [isEncrypted, setIsEncrypted] = useState(false);
+  const [encryptionKey, setEncryptionKey] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevActiveTagFilterRef = useRef<string | null | undefined>(undefined);
 
@@ -183,11 +185,23 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     const type = detectType(text, file);
     
     // Construct the payload
-    const newItem: Omit<Item, 'id' | 'createdAt'> = {
+    // 암호화 시 제목 필수
+    if (isEncrypted && !title.trim()) {
+      alert('암호화된 아이템은 제목이 필수입니다.');
+      return;
+    }
+    if (isEncrypted && !encryptionKey.trim()) {
+      alert('암호화 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    const newItem: Omit<Item, 'id' | 'createdAt'> & { encryptionKey?: string } = {
       type,
       content: text,
       tags: selectedTags,
       title: title || undefined,
+      isEncrypted,
+      encryptionKey: isEncrypted ? encryptionKey : undefined,
     };
 
     if (file) {
@@ -211,6 +225,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setSelectedTags([]);
     setAutoMatchedTags([]);
     setIsExpanded(false);
+    setIsEncrypted(false);
+    setEncryptionKey('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -373,6 +389,34 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Encryption Option */}
+          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEncrypted(!isEncrypted)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isEncrypted
+                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <LockKeyhole size={16} />
+              암호화
+            </button>
+            {isEncrypted && (
+              <input
+                type="password"
+                value={encryptionKey}
+                onChange={(e) => setEncryptionKey(e.target.value)}
+                placeholder="암호화 비밀번호 입력..."
+                className="flex-1 text-sm px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            )}
+            {isEncrypted && (
+              <span className="text-xs text-amber-600">제목 필수</span>
             )}
           </div>
 

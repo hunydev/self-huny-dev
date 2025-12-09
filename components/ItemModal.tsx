@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole } from 'lucide-react';
-import { getFileUrl, unlockItem } from '../services/db';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock } from 'lucide-react';
+import { getFileUrl, unlockItem, toggleEncryption } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
 import { checkPreviewSupport, formatFileSize } from '../services/filePreviewService';
@@ -13,9 +13,10 @@ interface ItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateTags: (itemId: string, tagIds: string[]) => void;
+  onToggleEncryption?: (id: string) => void;
 }
 
-const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags }) => {
+const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags, onToggleEncryption }) => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -42,6 +43,13 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       setUnlockError('비밀번호가 올바르지 않습니다.');
     }
     setIsUnlocking(false);
+  };
+
+  // 암호화 토글 핸들러
+  const handleToggleEncryption = () => {
+    if (item && onToggleEncryption) {
+      onToggleEncryption(item.id);
+    }
   };
 
   // Reset when item changes
@@ -353,12 +361,28 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
               {new Date(contentItem.createdAt).toLocaleString()}
             </p>
           </div>
-          <button 
-            onClick={handleClose}
-            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* 암호화 토글 버튼 */}
+            {onToggleEncryption && !isLocked && (
+              <button
+                onClick={handleToggleEncryption}
+                className={`p-2 rounded-lg transition-colors ${
+                  item.isEncrypted
+                    ? 'text-amber-500 hover:bg-amber-50'
+                    : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'
+                }`}
+                title={item.isEncrypted ? '암호화 해제' : '암호화'}
+              >
+                {item.isEncrypted ? <Unlock size={20} /> : <LockKeyhole size={20} />}
+              </button>
+            )}
+            <button 
+              onClick={handleClose}
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}

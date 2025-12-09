@@ -10,9 +10,10 @@ interface FeedProps {
   onDelete: (id: string) => void;
   onItemClick: (item: Item) => void;
   onToggleFavorite: (id: string, isFavorite: boolean) => void;
+  onToggleEncryption?: (id: string) => void;
 }
 
-const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggleFavorite }) => {
+const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggleFavorite, onToggleEncryption }) => {
   const { settings } = useSettings();
 
   // Group items based on settings
@@ -128,6 +129,7 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
                   onDelete={onDelete}
                   onClick={() => onItemClick(item)}
                   onToggleFavorite={onToggleFavorite}
+                  onToggleEncryption={onToggleEncryption}
                   compact={true}
                 />
               ))}
@@ -143,6 +145,7 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
                   onDelete={onDelete}
                   onClick={() => onItemClick(item)}
                   onToggleFavorite={onToggleFavorite}
+                  onToggleEncryption={onToggleEncryption}
                   compact={false}
                 />
               ))}

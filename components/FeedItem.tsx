@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -14,10 +14,11 @@ interface FeedItemProps {
   onDelete: (id: string) => void;
   onClick: () => void;
   onToggleFavorite: (id: string, isFavorite: boolean) => void;
+  onToggleEncryption?: (id: string) => void;
   compact?: boolean;
 }
 
-const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onToggleFavorite, compact = false }) => {
+const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onToggleFavorite, onToggleEncryption, compact = false }) => {
   const { showToast } = useToast();
   const { settings } = useSettings();
 
@@ -64,6 +65,13 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
   const handleToggleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation();
     onToggleFavorite(item.id, !item.isFavorite);
+  };
+
+  const handleToggleEncryption = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleEncryption) {
+      onToggleEncryption(item.id);
+    }
   };
 
   // Format date based on settings
@@ -371,6 +379,15 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
           >
             <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
           </button>
+          {onToggleEncryption && (
+            <button 
+              onClick={handleToggleEncryption} 
+              className={`p-1.5 rounded ${item.isEncrypted ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}
+              title={item.isEncrypted ? '암호화 해제' : '암호화'}
+            >
+              {item.isEncrypted ? <Unlock size={14} /> : <LockKeyhole size={14} />}
+            </button>
+          )}
           {item.fileKey ? (
             <button onClick={handleDownload} className="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="Download">
               <Download size={14} />

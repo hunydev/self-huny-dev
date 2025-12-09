@@ -8,6 +8,7 @@ import SettingsModal from './components/SettingsModal';
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
 import UploadProgress from './components/UploadProgress';
+import EncryptionModal from './components/EncryptionModal';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
@@ -39,6 +40,7 @@ const AuthenticatedContent: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [shareChoiceData, setShareChoiceData] = useState<ShareChoiceData | null>(null);
+  const [encryptionTarget, setEncryptionTarget] = useState<{ id: string; isEncrypted: boolean; title?: string } | null>(null);
   const inputAreaRef = useRef<InputAreaHandle>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -412,6 +414,63 @@ const AuthenticatedContent: React.FC = () => {
     }
   };
 
+  // 암호화 토글 모달 열기
+  const handleOpenEncryptionModal = (itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (item) {
+      setEncryptionTarget({
+        id: itemId,
+        isEncrypted: item.isEncrypted,
+        title: item.title,
+      });
+    }
+  };
+
+  // 암호화 토글 확인
+  const handleEncryptionConfirm = async (key: string, title?: string) => {
+    if (!encryptionTarget) return;
+    
+    try {
+      await db.toggleEncryption(
+        encryptionTarget.id,
+        !encryptionTarget.isEncrypted,
+        key,
+        title
+      );
+      
+      // 아이템 상태 업데이트
+      setItems(prev => prev.map(item =>
+        item.id === encryptionTarget.id
+          ? { 
+              ...item, 
+              isEncrypted: !encryptionTarget.isEncrypted,
+              title: title || item.title,
+              // 암호화 시 fileKey 숨기기
+              fileKey: !encryptionTarget.isEncrypted ? undefined : item.fileKey,
+            }
+          : item
+      ));
+      
+      // 선택된 아이템이면 같이 업데이트
+      if (selectedItem?.id === encryptionTarget.id) {
+        setSelectedItem(prev => prev ? {
+          ...prev,
+          isEncrypted: !encryptionTarget.isEncrypted,
+          title: title || prev.title,
+          fileKey: !encryptionTarget.isEncrypted ? undefined : prev.fileKey,
+        } : null);
+      }
+      
+      showToast(
+        encryptionTarget.isEncrypted ? '암호화가 해제되었습니다' : '암호화되었습니다',
+        'success'
+      );
+    } catch (err) {
+      console.error("Failed to toggle encryption", err);
+      throw err;
+    }
+  };
+
   // Filtered items based on type, tag, and search
   const filteredItems = useMemo(() => {
     let result = items;
@@ -419,6 +478,10 @@ const AuthenticatedContent: React.FC = () => {
     // Filter by favorites
     if (activeFilter === 'favorites') {
       result = result.filter(item => item.isFavorite);
+    }
+    // Filter by encrypted
+    else if (activeFilter === 'encrypted') {
+      result = result.filter(item => item.isEncrypted);
     }
     // Filter by type
     else if (activeFilter !== 'all') {
@@ -448,6 +511,7 @@ const AuthenticatedContent: React.FC = () => {
     const counts: Record<string, number> = {
       all: items.length,
       favorites: items.filter(i => i.isFavorite).length,
+      encrypted: items.filter(i => i.isEncrypted).length,
       [ItemType.TEXT]: items.filter(i => i.type === ItemType.TEXT).length,
       [ItemType.LINK]: items.filter(i => i.type === ItemType.LINK).length,
       [ItemType.IMAGE]: items.filter(i => i.type === ItemType.IMAGE).length,
@@ -694,6 +758,7 @@ const AuthenticatedContent: React.FC = () => {
                 onDelete={handleDeleteItem}
                 onItemClick={setSelectedItem}
                 onToggleFavorite={handleToggleFavorite}
+                onToggleEncryption={handleOpenEncryptionModal}
               />
             </div>
           </div>
@@ -710,12 +775,23 @@ const AuthenticatedContent: React.FC = () => {
         isOpen={!!selectedItem}
         onClose={() => setSelectedItem(null)}
         onUpdateTags={handleUpdateItemTags}
+        onToggleEncryption={handleOpenEncryptionModal}
       />
 
       {/* Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      {/* Encryption Modal */}
+      <EncryptionModal
+        isOpen={!!encryptionTarget}
+        onClose={() => setEncryptionTarget(null)}
+        mode={encryptionTarget?.isEncrypted ? 'decrypt' : 'encrypt'}
+        currentTitle={encryptionTarget?.title}
+        requireTitle={!encryptionTarget?.isEncrypted}
+        onConfirm={handleEncryptionConfirm}
       />
     </div>
   );
