@@ -25,6 +25,40 @@ export interface SpreadsheetData {
   }[];
 }
 
+// File size limits for preview (in bytes)
+// - Video/Audio: No limit (browser handles streaming well)
+// - Images: 50MB (browser handles well)
+// - PDF: 100MB (pdfjs handles well, but large files may be slow)
+// - Spreadsheets: 10MB (xlsx parsing is memory-intensive)
+// - Archives: 50MB (jszip needs to load entire file)
+// - Code/Text: 1MB (large text rendering can be slow)
+// - CSV: 5MB (parsing and table rendering)
+// - JSON: 2MB (parsing large JSON can be slow)
+const SIZE_LIMITS: Record<PreviewType, number> = {
+  'pdf': 100 * 1024 * 1024,        // 100MB
+  'archive': 50 * 1024 * 1024,     // 50MB
+  'spreadsheet': 10 * 1024 * 1024, // 10MB
+  'csv': 5 * 1024 * 1024,          // 5MB
+  'json': 2 * 1024 * 1024,         // 2MB
+  'code': 1 * 1024 * 1024,         // 1MB
+  'text': 1 * 1024 * 1024,         // 1MB
+  'markdown': 1 * 1024 * 1024,     // 1MB
+  'unsupported': 0,                // Not applicable
+};
+
+// Human-readable size limit messages
+const SIZE_LIMIT_MESSAGES: Record<PreviewType, string> = {
+  'pdf': '100MB',
+  'archive': '50MB',
+  'spreadsheet': '10MB',
+  'csv': '5MB',
+  'json': '2MB',
+  'code': '1MB',
+  'text': '1MB',
+  'markdown': '1MB',
+  'unsupported': '',
+};
+
 // Map file extensions to preview types
 const EXTENSION_MAP: Record<string, PreviewType> = {
   // PDF
@@ -150,6 +184,70 @@ export function getPrismLanguage(filename: string): string {
 
 export function canPreview(filename: string): boolean {
   return getPreviewType(filename) !== 'unsupported';
+}
+
+export interface PreviewCheckResult {
+  canPreview: boolean;
+  reason?: 'unsupported' | 'size_exceeded';
+  sizeLimit?: string;
+  previewType: PreviewType;
+}
+
+/**
+ * Check if a file can be previewed considering both type and size
+ * @param filename - The filename to check
+ * @param fileSize - The file size in bytes (optional)
+ * @returns PreviewCheckResult with detailed information
+ */
+export function checkPreviewSupport(filename: string, fileSize?: number): PreviewCheckResult {
+  const previewType = getPreviewType(filename);
+  
+  // Check if type is supported
+  if (previewType === 'unsupported') {
+    return {
+      canPreview: false,
+      reason: 'unsupported',
+      previewType,
+    };
+  }
+  
+  // If no file size provided, assume it can be previewed
+  if (fileSize === undefined) {
+    return {
+      canPreview: true,
+      previewType,
+    };
+  }
+  
+  // Check size limit for the file type
+  const sizeLimit = SIZE_LIMITS[previewType];
+  if (fileSize > sizeLimit) {
+    return {
+      canPreview: false,
+      reason: 'size_exceeded',
+      sizeLimit: SIZE_LIMIT_MESSAGES[previewType],
+      previewType,
+    };
+  }
+  
+  return {
+    canPreview: true,
+    previewType,
+  };
+}
+
+/**
+ * Get the size limit for a preview type
+ */
+export function getPreviewSizeLimit(previewType: PreviewType): number {
+  return SIZE_LIMITS[previewType] || 0;
+}
+
+/**
+ * Get human-readable size limit message
+ */
+export function getPreviewSizeLimitMessage(previewType: PreviewType): string {
+  return SIZE_LIMIT_MESSAGES[previewType] || '';
 }
 
 // PDF Preview

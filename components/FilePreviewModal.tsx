@@ -4,6 +4,8 @@ import {
   getPreviewType,
   getPrismLanguage,
   canPreview,
+  checkPreviewSupport,
+  getPreviewSizeLimitMessage,
   renderPdfPage,
   getPdfPageCount,
   getArchiveContents,
@@ -87,6 +89,19 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     const type = getPreviewType(fileName);
     setPreviewType(type);
     
+    // Check if preview is supported with size limit
+    const previewCheck = checkPreviewSupport(fileName, fileSize);
+    if (!previewCheck.canPreview) {
+      if (previewCheck.reason === 'size_exceeded') {
+        const sizeLimit = getPreviewSizeLimitMessage(type);
+        setError(`파일 용량이 커서 미리보기를 지원하지 않습니다.\n미리보기 제한: ${sizeLimit}`);
+      } else {
+        setError('이 파일 형식은 미리보기를 지원하지 않습니다.');
+      }
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       switch (type) {
         case 'pdf':
@@ -96,11 +111,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           break;
           
         case 'archive':
-          // Check file size - limit to 50MB for archive preview
-          if (fileSize && fileSize > 50 * 1024 * 1024) {
-            setError('파일이 너무 큽니다. 50MB 이하의 압축파일만 미리보기할 수 있습니다.');
-            break;
-          }
           const entries = await getArchiveContents(fileUrl);
           setArchiveEntries(entries);
           break;

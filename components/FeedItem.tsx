@@ -6,7 +6,7 @@ import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import { useToast } from '../contexts/ToastContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { canPreview } from '../services/filePreviewService';
+import { checkPreviewSupport } from '../services/filePreviewService';
 
 interface FeedItemProps {
   item: Item;
@@ -102,10 +102,10 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
           </div>
         );
       case ItemType.FILE:
-        const hasPreview = item.fileName ? canPreview(item.fileName) : false;
+        const previewCheck = item.fileName ? checkPreviewSupport(item.fileName, item.fileSize) : { canPreview: false };
         return (
           <div className="p-4 flex flex-col items-center justify-center aspect-square bg-slate-50 text-slate-500 gap-2 relative">
-            {hasPreview && (
+            {previewCheck.canPreview && (
               <div className="absolute top-2 right-2">
                 <Eye size={14} className="text-indigo-500" />
               </div>
