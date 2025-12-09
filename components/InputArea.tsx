@@ -29,12 +29,32 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [showTagManager, setShowTagManager] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevActiveTagFilterRef = useRef<string | null | undefined>(undefined);
 
-  // Auto-select active filter tag when it changes
+  // Auto-select active filter tag when it changes (replace previous filter tag)
   useEffect(() => {
-    if (activeTagFilter && !selectedTags.includes(activeTagFilter)) {
-      setSelectedTags(prev => [...prev, activeTagFilter]);
-    }
+    const prevFilter = prevActiveTagFilterRef.current;
+    
+    // Remove previous filter tag if it exists and was auto-added
+    // Add new filter tag if it exists
+    setSelectedTags(prev => {
+      let newTags = prev;
+      
+      // Remove previous filter tag (if different from new one)
+      if (prevFilter && prevFilter !== activeTagFilter) {
+        newTags = newTags.filter(t => t !== prevFilter);
+      }
+      
+      // Add new filter tag if not already selected
+      if (activeTagFilter && !newTags.includes(activeTagFilter)) {
+        newTags = [...newTags, activeTagFilter];
+      }
+      
+      return newTags;
+    });
+    
+    // Update ref
+    prevActiveTagFilterRef.current = activeTagFilter;
   }, [activeTagFilter]);
   const { settings } = useSettings();
 
