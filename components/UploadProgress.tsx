@@ -51,7 +51,7 @@ const UploadProgress: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed bottom-4 left-4 lg:left-[calc(16rem+1rem)] z-30 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
       {/* Header */}
       <div 
         className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 cursor-pointer"

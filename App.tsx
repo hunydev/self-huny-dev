@@ -700,6 +700,9 @@ const AuthenticatedContent: React.FC = () => {
         </div>
       </main>
 
+      {/* Upload Progress */}
+      <UploadProgress />
+
       {/* Item Modal */}
       <ItemModal
         item={selectedItem!}
@@ -739,12 +742,7 @@ const AppContent: React.FC = () => {
     return <LoginScreen />;
   }
 
-  return (
-    <>
-      <AuthenticatedContent />
-      <UploadProgress />
-    </>
-  );
+  return <AuthenticatedContent />;
 };
 
 const App: React.FC = () => {
