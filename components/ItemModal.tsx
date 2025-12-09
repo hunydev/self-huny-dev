@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye } from 'lucide-react';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
+import FilePreviewModal from './FilePreviewModal';
+import { canPreview } from '../services/filePreviewService';
 
 interface ItemModalProps {
   item: Item | null;
@@ -16,12 +18,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showFilePreview, setShowFilePreview] = useState(false);
 
   // Reset when item changes
   useEffect(() => {
     if (item) {
       setSelectedTags(item.tags);
       setHasChanges(false);
+      setShowFilePreview(false);
     }
   }, [item?.id, item?.tags]);
 
@@ -132,6 +136,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         );
       
       case ItemType.FILE:
+        const previewSupported = item.fileName ? canPreview(item.fileName) : false;
         return (
           <div className="p-8 bg-slate-50 rounded-lg flex flex-col items-center gap-4">
             <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center text-indigo-600">
@@ -144,13 +149,24 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                 {item.mimeType ? ` • ${item.mimeType}` : ''}
               </p>
             </div>
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Download size={18} />
-              Download
-            </button>
+            <div className="flex gap-2">
+              {previewSupported && fileUrl && (
+                <button
+                  onClick={() => setShowFilePreview(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  <Eye size={18} />
+                  미리보기
+                </button>
+              )}
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Download size={18} />
+                다운로드
+              </button>
+            </div>
           </div>
         );
       
@@ -365,6 +381,18 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
           )}
         </div>
       </div>
+
+      {/* File Preview Modal */}
+      {fileUrl && item.fileName && (
+        <FilePreviewModal
+          isOpen={showFilePreview}
+          onClose={() => setShowFilePreview(false)}
+          fileUrl={fileUrl}
+          fileName={item.fileName}
+          fileSize={item.fileSize}
+          onDownload={handleDownload}
+        />
+      )}
     </div>
   );
 };

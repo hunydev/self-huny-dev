@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import { useToast } from '../contexts/ToastContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { canPreview } from '../services/filePreviewService';
 
 interface FeedItemProps {
   item: Item;
@@ -101,8 +102,14 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
           </div>
         );
       case ItemType.FILE:
+        const hasPreview = item.fileName ? canPreview(item.fileName) : false;
         return (
-          <div className="p-4 flex flex-col items-center justify-center aspect-square bg-slate-50 text-slate-500 gap-2">
+          <div className="p-4 flex flex-col items-center justify-center aspect-square bg-slate-50 text-slate-500 gap-2 relative">
+            {hasPreview && (
+              <div className="absolute top-2 right-2">
+                <Eye size={14} className="text-indigo-500" />
+              </div>
+            )}
             <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center text-indigo-600">
               <FileText size={24} />
             </div>
