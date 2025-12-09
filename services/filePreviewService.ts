@@ -163,8 +163,8 @@ export async function loadPdfJs(): Promise<typeof import('pdfjs-dist')> {
   
   pdfjsLib = await import('pdfjs-dist');
   
-  // Set worker source
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  // Set worker source using jsdelivr CDN (more reliable than cdnjs for newer versions)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
   
   pdfJsLoaded = true;
   return pdfjsLib;
