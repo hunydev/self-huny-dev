@@ -13,13 +13,14 @@ import {
   Search,
   Star,
   Edit2,
-  Zap
+  Zap,
+  LockKeyhole
 } from 'lucide-react';
-import { NavItem, ItemType, Tag, Item } from '../types';
+import { NavItem, ItemType, Tag } from '../types';
 
 interface SidebarProps {
-  activeFilter: ItemType | 'all' | 'favorites';
-  onFilterChange: (type: ItemType | 'all' | 'favorites') => void;
+  activeFilter: ItemType | 'all' | 'favorites' | 'encrypted';
+  onFilterChange: (type: ItemType | 'all' | 'favorites' | 'encrypted') => void;
   activeTagFilter: string | null;
   onTagFilterChange: (tagId: string | null) => void;
   tags: Tag[];
@@ -61,6 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navItems: NavItem[] = [
     { id: 'all', label: 'All', icon: <LayoutGrid size={18} />, filterType: 'all' },
     { id: 'favorites', label: 'Favorites', icon: <Star size={18} />, filterType: 'favorites' as any },
+    { id: 'encrypted', label: 'Encrypted', icon: <LockKeyhole size={18} />, filterType: 'encrypted' as any },
     { id: 'text', label: 'Text', icon: <FileText size={18} />, filterType: ItemType.TEXT },
     { id: 'link', label: 'Links', icon: <LinkIcon size={18} />, filterType: ItemType.LINK },
     { id: 'image', label: 'Images', icon: <ImageIcon size={18} />, filterType: ItemType.IMAGE },
@@ -261,7 +263,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <div className="flex items-center gap-2 text-sm font-medium min-w-0">
                         {hasAutoKeywords ? (
-                          <Zap size={16} className={`shrink-0 ${activeTagFilter === tag.id ? 'text-amber-500' : 'text-amber-400'}`} title="Auto-classification enabled" />
+                          <Zap size={16} className={`shrink-0 ${activeTagFilter === tag.id ? 'text-amber-500' : 'text-amber-400'}`} aria-label="Auto-classification enabled" />
                         ) : (
                           <TagIcon size={16} className={`shrink-0 ${activeTagFilter === tag.id ? 'text-indigo-500' : 'text-slate-400'}`} />
                         )}

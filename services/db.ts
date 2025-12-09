@@ -16,6 +16,7 @@ interface ApiItem {
   ogDescription?: string;
   tags: string[];
   isFavorite: boolean;
+  isEncrypted: boolean;
   createdAt: number;
 }
 
@@ -48,6 +49,7 @@ const transformItem = (apiItem: ApiItem): Item => ({
   ogDescription: apiItem.ogDescription,
   tags: apiItem.tags || [],
   isFavorite: apiItem.isFavorite || false,
+  isEncrypted: apiItem.isEncrypted || false,
   createdAt: apiItem.createdAt,
 });
 
@@ -59,11 +61,23 @@ const transformTag = (apiTag: ApiTag): Tag => ({
   autoKeywords: apiTag.autoKeywords || [],
 });
 
+// Hash encryption key using SHA-256
+export const hashEncryptionKey = async (key: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
 // Get all items
-export const getItems = async (type?: ItemType | 'all'): Promise<Item[]> => {
+export const getItems = async (type?: ItemType | 'all', encrypted?: boolean): Promise<Item[]> => {
   const params = new URLSearchParams();
   if (type && type !== 'all') {
     params.set('type', type);
+  }
+  if (encrypted !== undefined) {
+    params.set('encrypted', encrypted.toString());
   }
 
   const url = `${API_BASE}/items${params.toString() ? '?' + params.toString() : ''}`;
@@ -125,10 +139,11 @@ const uploadFileWithProgress = (
   });
 };
 
-// Save item with optional progress tracking
+// Save item with optional progress tracking and encryption
 export const saveItem = async (
   item: Omit<Item, 'id' | 'createdAt'>,
-  onProgress?: UploadProgressCallback
+  onProgress?: UploadProgressCallback,
+  encryptionKey?: string
 ): Promise<Item> => {
   let fileKey: string | undefined;
   let fileName: string | undefined;
@@ -149,6 +164,12 @@ export const saveItem = async (
     mimeType = uploadResult.mimeType;
   }
 
+  // Generate encryption hash if encryption is enabled
+  let encryptionHash: string | undefined;
+  if (item.isEncrypted && encryptionKey) {
+    encryptionHash = await hashEncryptionKey(encryptionKey);
+  }
+
   // Create item
   const response = await fetch(`${API_BASE}/items`, {
     method: 'POST',
@@ -164,11 +185,14 @@ export const saveItem = async (
       mimeType: mimeType || item.mimeType,
       title: item.title,
       tags: item.tags,
+      isEncrypted: item.isEncrypted,
+      encryptionHash,
     }),
   });
 
   if (!response.ok) {
-    throw new Error('Failed to save item');
+    const errorData = await response.json().catch(() => ({ error: 'Failed to save item' })) as { error?: string };
+    throw new Error(errorData.error || 'Failed to save item');
   }
 
   const data: ApiItem = await response.json();
@@ -289,4 +313,93 @@ export const toggleFavorite = async (itemId: string, isFavorite: boolean): Promi
 // Get file URL
 export const getFileUrl = (fileKey: string): string => {
   return `${API_BASE}/upload/${fileKey}`;
+};
+
+// Verify encryption key for an item
+export const verifyEncryptionKey = async (itemId: string, key: string): Promise<boolean> => {
+  const keyHash = await hashEncryptionKey(key);
+  
+  const response = await fetch(`${API_BASE}/items/${itemId}/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ keyHash }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to verify encryption key');
+  }
+
+  const data = await response.json() as { valid: boolean };
+  return data.valid;
+};
+
+// Unlock encrypted item and get full content
+export const unlockItem = async (itemId: string, key: string): Promise<Item> => {
+  const keyHash = await hashEncryptionKey(key);
+  
+  const response = await fetch(`${API_BASE}/items/${itemId}/unlock`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ keyHash }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Failed to unlock item' })) as { error?: string };
+    throw new Error(errorData.error || 'Failed to unlock item');
+  }
+
+  const data: ApiItem = await response.json();
+  return transformItem(data);
+};
+
+// Toggle item encryption status
+export const toggleEncryption = async (
+  itemId: string, 
+  isEncrypted: boolean, 
+  key: string,
+  title?: string
+): Promise<void> => {
+  const keyHash = isEncrypted ? await hashEncryptionKey(key) : null;
+  
+  const body: Record<string, unknown> = {
+    isEncrypted,
+    encryptionHash: keyHash,
+  };
+  
+  // If enabling encryption and title is provided, update title too
+  if (isEncrypted && title) {
+    body.title = title;
+  }
+  
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Failed to toggle encryption' })) as { error?: string };
+    throw new Error(errorData.error || 'Failed to toggle encryption');
+  }
+};
+
+// Update item title
+export const updateItemTitle = async (itemId: string, title: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update item title');
+  }
 };

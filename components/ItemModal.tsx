@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye } from 'lucide-react';
-import { getFileUrl } from '../services/db';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole } from 'lucide-react';
+import { getFileUrl, unlockItem } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
 import { checkPreviewSupport, formatFileSize } from '../services/filePreviewService';
+import EncryptionUnlock from './EncryptionUnlock';
 
 interface ItemModalProps {
   item: Item | null;
@@ -19,6 +20,29 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   const [copied, setCopied] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
+  
+  // 암호화된 아이템 잠금 해제 상태
+  const [unlockedItem, setUnlockedItem] = useState<Item | null>(null);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  
+  // 실제 표시할 아이템 (잠금 해제된 경우 unlockedItem, 아니면 원본)
+  const displayItem = item?.isEncrypted && unlockedItem ? unlockedItem : item;
+  const isLocked = item?.isEncrypted && !unlockedItem;
+
+  // 잠금 해제 핸들러
+  const handleUnlock = async (key: string) => {
+    if (!item) return;
+    setIsUnlocking(true);
+    setUnlockError(null);
+    try {
+      const unlocked = await unlockItem(item.id, key);
+      setUnlockedItem(unlocked);
+    } catch (error) {
+      setUnlockError('비밀번호가 올바르지 않습니다.');
+    }
+    setIsUnlocking(false);
+  };
 
   // Reset when item changes
   useEffect(() => {
@@ -26,16 +50,20 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       setSelectedTags(item.tags);
       setHasChanges(false);
       setShowFilePreview(false);
+      // 암호화 상태 리셋
+      setUnlockedItem(null);
+      setUnlockError(null);
     }
   }, [item?.id, item?.tags]);
 
-  // Get file URL
+  // Get file URL (암호화 해제된 아이템 기준)
   const fileUrl = useMemo(() => {
-    if (item?.fileKey) {
-      return getFileUrl(item.fileKey);
+    const targetItem = item?.isEncrypted && unlockedItem ? unlockedItem : item;
+    if (targetItem?.fileKey) {
+      return getFileUrl(targetItem.fileKey);
     }
     return null;
-  }, [item?.fileKey]);
+  }, [item?.fileKey, item?.isEncrypted, unlockedItem]);
 
   const handleCopy = async () => {
     if (item && (item.type === ItemType.LINK || item.type === ItemType.TEXT)) {
@@ -97,16 +125,30 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   }, [isOpen, hasChanges, item]);
 
   if (!isOpen || !item) return null;
+  
+  // 실제 표시할 아이템
+  const contentItem = displayItem || item;
 
   const renderContent = () => {
-    switch (item.type) {
+    // 암호화된 아이템이 잠겨있는 경우
+    if (isLocked) {
+      return (
+        <EncryptionUnlock
+          onUnlock={handleUnlock}
+          isLoading={isUnlocking}
+          error={unlockError}
+        />
+      );
+    }
+    
+    switch (contentItem.type) {
       case ItemType.IMAGE:
         return (
           <div className="flex items-center justify-center bg-black/5 rounded-lg overflow-hidden max-h-[60vh]">
             {fileUrl ? (
               <img 
                 src={fileUrl} 
-                alt={item.fileName} 
+                alt={contentItem.fileName} 
                 className="max-w-full max-h-[60vh] object-contain"
               />
             ) : (
@@ -136,17 +178,17 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         );
       
       case ItemType.FILE:
-        const previewCheck = item.fileName ? checkPreviewSupport(item.fileName, item.fileSize) : { canPreview: false, reason: 'unsupported' as const, previewType: 'unsupported' as const };
+        const previewCheck = contentItem.fileName ? checkPreviewSupport(contentItem.fileName, contentItem.fileSize) : { canPreview: false, reason: 'unsupported' as const, previewType: 'unsupported' as const };
         return (
           <div className="p-8 bg-slate-50 rounded-lg flex flex-col items-center gap-4">
             <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center text-indigo-600">
               <FileText size={32} />
             </div>
             <div className="text-center">
-              <p className="font-medium text-slate-800">{item.fileName}</p>
+              <p className="font-medium text-slate-800">{contentItem.fileName}</p>
               <p className="text-sm text-slate-500 mt-1">
-                {item.fileSize ? formatFileSize(item.fileSize) : ''}
-                {item.mimeType ? ` • ${item.mimeType}` : ''}
+                {contentItem.fileSize ? formatFileSize(contentItem.fileSize) : ''}
+                {contentItem.mimeType ? ` • ${contentItem.mimeType}` : ''}
               </p>
             </div>
             {/* Size exceeded warning */}
@@ -183,11 +225,11 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         return (
           <div className="rounded-lg overflow-hidden border border-slate-200 bg-white">
             {/* OG Image */}
-            {item.ogImage && (
+            {contentItem.ogImage && (
               <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
                 <img 
-                  src={item.ogImage} 
-                  alt={item.ogTitle || 'Link preview'} 
+                  src={contentItem.ogImage} 
+                  alt={contentItem.ogTitle || 'Link preview'} 
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
@@ -199,16 +241,16 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
             {/* Content Section */}
             <div className="p-5">
               {/* Title */}
-              {(item.ogTitle || item.title) && (
+              {(contentItem.ogTitle || contentItem.title) && (
                 <h3 className="text-lg font-semibold text-slate-800 mb-2 leading-snug">
-                  {item.ogTitle || item.title}
+                  {contentItem.ogTitle || contentItem.title}
                 </h3>
               )}
               
               {/* Description */}
-              {item.ogDescription && (
+              {contentItem.ogDescription && (
                 <p className="text-sm text-slate-500 mb-3 leading-relaxed line-clamp-3">
-                  {item.ogDescription}
+                  {contentItem.ogDescription}
                 </p>
               )}
               
@@ -216,12 +258,12 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
               <div className="flex items-start gap-2 text-indigo-600 mt-3 p-3 bg-slate-50 rounded-lg">
                 <ExternalLink size={14} className="flex-shrink-0 mt-0.5" />
                 <a 
-                  href={item.content} 
+                  href={contentItem.content} 
                   target="_blank" 
                   rel="noopener noreferrer" 
                   className="text-sm font-medium hover:underline break-all select-text"
                 >
-                  {item.content}
+                  {contentItem.content}
                 </a>
               </div>
             </div>
@@ -231,13 +273,13 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       case ItemType.TEXT:
       default:
         // If text contains a link with OG data, show rich preview
-        if (item.ogImage) {
+        if (contentItem.ogImage) {
           return (
             <div className="space-y-4">
               {/* Text content */}
               <div className="p-6 bg-white rounded-lg border border-slate-100">
                 <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
-                  {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
+                  {linkifyText(contentItem.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
                 </p>
               </div>
               
@@ -246,8 +288,8 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                 {/* OG Image */}
                 <div className="relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden">
                   <img 
-                    src={item.ogImage} 
-                    alt={item.ogTitle || 'Link preview'} 
+                    src={contentItem.ogImage} 
+                    alt={contentItem.ogTitle || 'Link preview'} 
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
@@ -256,16 +298,16 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                 </div>
                 
                 {/* OG Content */}
-                {(item.ogTitle || item.ogDescription) && (
+                {(contentItem.ogTitle || contentItem.ogDescription) && (
                   <div className="p-4">
-                    {item.ogTitle && (
+                    {contentItem.ogTitle && (
                       <h4 className="text-sm font-semibold text-slate-800 mb-1 leading-snug">
-                        {item.ogTitle}
+                        {contentItem.ogTitle}
                       </h4>
                     )}
-                    {item.ogDescription && (
+                    {contentItem.ogDescription && (
                       <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">
-                        {item.ogDescription}
+                        {contentItem.ogDescription}
                       </p>
                     )}
                   </div>
@@ -279,7 +321,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         return (
           <div className="p-6 bg-white rounded-lg border border-slate-100">
             <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
-              {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
+              {linkifyText(contentItem.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
             </p>
           </div>
         );
@@ -299,11 +341,16 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="min-w-0 flex-1">
-            {item.title && (
-              <h2 className="font-semibold text-lg text-slate-800 truncate">{item.title}</h2>
-            )}
+            <div className="flex items-center gap-2">
+              {item.isEncrypted && (
+                <LockKeyhole size={18} className="text-amber-500 flex-shrink-0" />
+              )}
+              {(contentItem.title || item.title) && (
+                <h2 className="font-semibold text-lg text-slate-800 truncate">{contentItem.title || item.title}</h2>
+              )}
+            </div>
             <p className="text-sm text-slate-400">
-              {new Date(item.createdAt).toLocaleString()}
+              {new Date(contentItem.createdAt).toLocaleString()}
             </p>
           </div>
           <button 
@@ -319,86 +366,90 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
           {renderContent()}
         </div>
 
-        {/* Tags Section */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-medium text-slate-600">Tags</span>
+        {/* Tags Section - only show when unlocked */}
+        {!isLocked && (
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-medium text-slate-600">Tags</span>
+              {hasChanges && (
+                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  Unsaved changes
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tags.map(tag => (
+                <button
+                  key={tag.id}
+                  onClick={() => handleTagToggle(tag.id)}
+                  className={`text-xs px-3 py-1.5 rounded-full transition-colors border ${
+                    selectedTags.includes(tag.id)
+                      ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  #{tag.name}
+                </button>
+              ))}
+              {tags.length === 0 && (
+                <span className="text-sm text-slate-400">No tags available</span>
+              )}
+            </div>
             {hasChanges && (
-              <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                Unsaved changes
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {tags.map(tag => (
               <button
-                key={tag.id}
-                onClick={() => handleTagToggle(tag.id)}
-                className={`text-xs px-3 py-1.5 rounded-full transition-colors border ${
-                  selectedTags.includes(tag.id)
-                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={handleSaveTags}
+                className="mt-3 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
               >
-                #{tag.name}
+                Save tag changes
               </button>
-            ))}
-            {tags.length === 0 && (
-              <span className="text-sm text-slate-400">No tags available</span>
             )}
           </div>
-          {hasChanges && (
-            <button
-              onClick={handleSaveTags}
-              className="mt-3 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-            >
-              Save tag changes
-            </button>
-          )}
-        </div>
+        )}
 
-        {/* Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
-          {(item.type === ItemType.TEXT || item.type === ItemType.LINK) && (
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          )}
-          {item.fileKey && (
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <Download size={18} />
-              Download
-            </button>
-          )}
-          {item.type === ItemType.LINK && (
-            <a
-              href={item.content}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <ExternalLink size={18} />
-              Open Link
-            </a>
-          )}
-        </div>
+        {/* Actions - only show when unlocked */}
+        {!isLocked && (
+          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
+            {(contentItem.type === ItemType.TEXT || contentItem.type === ItemType.LINK) && (
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            )}
+            {contentItem.fileKey && (
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <Download size={18} />
+                Download
+              </button>
+            )}
+            {contentItem.type === ItemType.LINK && (
+              <a
+                href={contentItem.content}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <ExternalLink size={18} />
+                Open Link
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* File Preview Modal */}
-      {fileUrl && item.fileName && (
+      {fileUrl && contentItem.fileName && !isLocked && (
         <FilePreviewModal
           isOpen={showFilePreview}
           onClose={() => setShowFilePreview(false)}
           fileUrl={fileUrl}
-          fileName={item.fileName}
-          fileSize={item.fileSize}
+          fileName={contentItem.fileName}
+          fileSize={contentItem.fileSize}
           onDownload={handleDownload}
         />
       )}

@@ -28,6 +28,7 @@ export interface Item {
   ogDescription?: string; // Open Graph description
   tags: string[]; // Tag IDs
   isFavorite: boolean; // Favorite flag
+  isEncrypted: boolean; // Encryption flag
   createdAt: number;
 }
 

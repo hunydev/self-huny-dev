@@ -8,6 +8,7 @@ export const itemsRoutes = new Hono<{ Bindings: Env }>();
 itemsRoutes.get('/', async (c) => {
   const type = c.req.query('type');
   const tagId = c.req.query('tagId');
+  const encrypted = c.req.query('encrypted'); // Filter encrypted items
   const limit = parseInt(c.req.query('limit') || '100');
   const offset = parseInt(c.req.query('offset') || '0');
 
@@ -31,6 +32,13 @@ itemsRoutes.get('/', async (c) => {
       conditions.push('EXISTS (SELECT 1 FROM item_tags WHERE item_id = i.id AND tag_id = ?)');
       params.push(tagId);
     }
+    
+    // Filter by encrypted status
+    if (encrypted === 'true') {
+      conditions.push('i.is_encrypted = 1');
+    } else if (encrypted === 'false') {
+      conditions.push('i.is_encrypted = 0');
+    }
 
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
@@ -42,22 +50,28 @@ itemsRoutes.get('/', async (c) => {
     const { results } = await c.env.DB.prepare(query).bind(...params).all();
     
     // Transform results
-    const items = results.map((row: any) => ({
-      id: row.id,
-      type: row.type,
-      content: row.content,
-      fileKey: row.file_key,
-      fileName: row.file_name,
-      fileSize: row.file_size,
-      mimeType: row.mime_type,
-      title: row.title,
-      ogImage: row.og_image,
-      ogTitle: row.og_title,
-      ogDescription: row.og_description,
-      tags: row.tag_ids ? row.tag_ids.split(',') : [],
-      isFavorite: row.is_favorite === 1,
-      createdAt: row.created_at,
-    }));
+    const items = results.map((row: any) => {
+      const isEncrypted = row.is_encrypted === 1;
+      return {
+        id: row.id,
+        type: row.type,
+        // Hide content for encrypted items
+        content: isEncrypted ? '' : row.content,
+        // Hide fileKey for encrypted items
+        fileKey: isEncrypted ? undefined : row.file_key,
+        fileName: row.file_name,
+        fileSize: row.file_size,
+        mimeType: row.mime_type,
+        title: row.title,
+        ogImage: isEncrypted ? undefined : row.og_image,
+        ogTitle: row.og_title,
+        ogDescription: isEncrypted ? undefined : row.og_description,
+        tags: row.tag_ids ? row.tag_ids.split(',') : [],
+        isFavorite: row.is_favorite === 1,
+        isEncrypted,
+        createdAt: row.created_at,
+      };
+    });
 
     return c.json(items);
   } catch (error) {
@@ -85,20 +99,24 @@ itemsRoutes.get('/:id', async (c) => {
       return c.json({ error: 'Item not found' }, 404);
     }
 
+    const isEncrypted = item.is_encrypted === 1;
     return c.json({
       id: item.id,
       type: item.type,
-      content: item.content,
-      fileKey: item.file_key,
+      // Hide content for encrypted items
+      content: isEncrypted ? '' : item.content,
+      // Hide fileKey for encrypted items
+      fileKey: isEncrypted ? undefined : item.file_key,
       fileName: item.file_name,
       fileSize: item.file_size,
       mimeType: item.mime_type,
       title: item.title,
-      ogImage: item.og_image,
+      ogImage: isEncrypted ? undefined : item.og_image,
       ogTitle: item.og_title,
-      ogDescription: item.og_description,
+      ogDescription: isEncrypted ? undefined : item.og_description,
       tags: item.tag_ids ? (item.tag_ids as string).split(',') : [],
       isFavorite: item.is_favorite === 1,
+      isEncrypted,
       createdAt: item.created_at,
     });
   } catch (error) {
@@ -111,7 +129,12 @@ itemsRoutes.get('/:id', async (c) => {
 itemsRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
-    const { type, content, fileKey, fileName, fileSize, mimeType, title, tags } = body;
+    const { type, content, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash } = body;
+
+    // Title is required for encrypted items
+    if (isEncrypted && !title) {
+      return c.json({ error: '암호화된 아이템은 제목이 필수입니다.' }, 400);
+    }
 
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -152,8 +175,8 @@ itemsRoutes.post('/', async (c) => {
     }
 
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, 
       type, 
@@ -166,6 +189,8 @@ itemsRoutes.post('/', async (c) => {
       ogImage,
       ogTitle,
       ogDescription,
+      isEncrypted ? 1 : 0,
+      encryptionHash || null,
       now
     ).run();
 
@@ -182,17 +207,18 @@ itemsRoutes.post('/', async (c) => {
     return c.json({ 
       id, 
       type, 
-      content: content || '', 
-      fileKey, 
+      content: isEncrypted ? '' : (content || ''), 
+      fileKey: isEncrypted ? undefined : fileKey, 
       fileName, 
       fileSize, 
       mimeType, 
       title, 
-      ogImage,
+      ogImage: isEncrypted ? undefined : ogImage,
       ogTitle,
-      ogDescription,
+      ogDescription: isEncrypted ? undefined : ogDescription,
       tags: tags || [], 
       isFavorite: false,
+      isEncrypted: !!isEncrypted,
       createdAt: now 
     }, 201);
   } catch (error) {
@@ -207,32 +233,47 @@ itemsRoutes.put('/:id', async (c) => {
 
   try {
     const body = await c.req.json();
-    const { content, title, tags, isFavorite } = body;
+    const { content, title, tags, isFavorite, isEncrypted, encryptionHash } = body;
 
-    // Only update content/title/isFavorite if they are provided
-    if (content !== undefined || title !== undefined || isFavorite !== undefined) {
-      const updates: string[] = [];
-      const params: any[] = [];
-      
-      if (content !== undefined) {
-        updates.push('content = ?');
-        params.push(content || '');
+    // Title is required for encrypted items
+    if (isEncrypted && !title) {
+      // Check if item already has a title
+      const existingItem = await c.env.DB.prepare('SELECT title FROM items WHERE id = ?').bind(id).first();
+      if (!existingItem?.title) {
+        return c.json({ error: '암호화된 아이템은 제목이 필수입니다.' }, 400);
       }
-      if (title !== undefined) {
-        updates.push('title = ?');
-        params.push(title || null);
-      }
-      if (isFavorite !== undefined) {
-        updates.push('is_favorite = ?');
-        params.push(isFavorite ? 1 : 0);
-      }
-      
-      if (updates.length > 0) {
-        params.push(id);
-        await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ?`)
-          .bind(...params)
-          .run();
-      }
+    }
+
+    // Only update content/title/isFavorite/encryption if they are provided
+    const updates: string[] = [];
+    const params: any[] = [];
+    
+    if (content !== undefined) {
+      updates.push('content = ?');
+      params.push(content || '');
+    }
+    if (title !== undefined) {
+      updates.push('title = ?');
+      params.push(title || null);
+    }
+    if (isFavorite !== undefined) {
+      updates.push('is_favorite = ?');
+      params.push(isFavorite ? 1 : 0);
+    }
+    if (isEncrypted !== undefined) {
+      updates.push('is_encrypted = ?');
+      params.push(isEncrypted ? 1 : 0);
+    }
+    if (encryptionHash !== undefined) {
+      updates.push('encryption_hash = ?');
+      params.push(encryptionHash || null);
+    }
+    
+    if (updates.length > 0) {
+      params.push(id);
+      await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ?`)
+        .bind(...params)
+        .run();
     }
 
     // Update tags if provided
@@ -278,5 +319,86 @@ itemsRoutes.delete('/:id', async (c) => {
   } catch (error) {
     console.error('Error deleting item:', error);
     return c.json({ error: 'Failed to delete item' }, 500);
+  }
+});
+
+// Verify encryption key for an item
+itemsRoutes.post('/:id/verify', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const body = await c.req.json();
+    const { keyHash } = body;
+
+    if (!keyHash) {
+      return c.json({ error: '암호화 키가 필요합니다.' }, 400);
+    }
+
+    const item = await c.env.DB.prepare('SELECT encryption_hash FROM items WHERE id = ?').bind(id).first();
+
+    if (!item) {
+      return c.json({ error: 'Item not found' }, 404);
+    }
+
+    const isValid = item.encryption_hash === keyHash;
+    return c.json({ valid: isValid });
+  } catch (error) {
+    console.error('Error verifying encryption key:', error);
+    return c.json({ error: 'Failed to verify encryption key' }, 500);
+  }
+});
+
+// Get decrypted content for an encrypted item (after key verification on client)
+itemsRoutes.post('/:id/unlock', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const body = await c.req.json();
+    const { keyHash } = body;
+
+    if (!keyHash) {
+      return c.json({ error: '암호화 키가 필요합니다.' }, 400);
+    }
+
+    const item = await c.env.DB.prepare(`
+      SELECT 
+        i.*,
+        GROUP_CONCAT(it.tag_id) as tag_ids
+      FROM items i
+      LEFT JOIN item_tags it ON i.id = it.item_id
+      WHERE i.id = ?
+      GROUP BY i.id
+    `).bind(id).first();
+
+    if (!item) {
+      return c.json({ error: 'Item not found' }, 404);
+    }
+
+    // Verify encryption key
+    if (item.encryption_hash !== keyHash) {
+      return c.json({ error: '암호화 키가 올바르지 않습니다.' }, 401);
+    }
+
+    // Return full item content
+    return c.json({
+      id: item.id,
+      type: item.type,
+      content: item.content,
+      fileKey: item.file_key,
+      fileName: item.file_name,
+      fileSize: item.file_size,
+      mimeType: item.mime_type,
+      title: item.title,
+      ogImage: item.og_image,
+      ogTitle: item.og_title,
+      ogDescription: item.og_description,
+      tags: item.tag_ids ? (item.tag_ids as string).split(',') : [],
+      isFavorite: item.is_favorite === 1,
+      isEncrypted: item.is_encrypted === 1,
+      createdAt: item.created_at,
+    });
+  } catch (error) {
+    console.error('Error unlocking item:', error);
+    return c.json({ error: 'Failed to unlock item' }, 500);
   }
 });

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -78,6 +78,19 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
   const imageFitClass = settings.imageFit === 'contain' ? 'object-contain' : 'object-cover';
 
   const renderThumbnail = () => {
+    // Encrypted item - show lock screen
+    if (item.isEncrypted) {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 gap-3">
+          <div className="w-14 h-14 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-400">
+            <LockKeyhole size={28} />
+          </div>
+          <span className="text-xs font-medium text-slate-500">암호화됨</span>
+          <span className="text-[10px] text-slate-400">클릭하여 잠금 해제</span>
+        </div>
+      );
+    }
+    
     switch (item.type) {
       case ItemType.IMAGE:
         return (
@@ -266,7 +279,9 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       >
         {/* Thumbnail or Icon */}
         <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
-          {(item.type === ItemType.IMAGE && fileUrl) ? (
+          {item.isEncrypted ? (
+            <LockKeyhole size={16} className="text-slate-400" />
+          ) : (item.type === ItemType.IMAGE && fileUrl) ? (
             <img src={fileUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
           ) : (item.ogImage) ? (
             <img src={item.ogImage} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -341,7 +356,12 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
 
       {/* Footer / Actions */}
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
-        <span className="text-[10px] font-medium">{formattedDate}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium">{formattedDate}</span>
+          {item.isEncrypted && (
+            <LockKeyhole size={12} className="text-slate-400" />
+          )}
+        </div>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
           <button 
