@@ -77,8 +77,59 @@ export const getItems = async (type?: ItemType | 'all'): Promise<Item[]> => {
   return data.map(transformItem);
 };
 
-// Save item
-export const saveItem = async (item: Omit<Item, 'id' | 'createdAt'>): Promise<Item> => {
+// Upload progress callback type
+export type UploadProgressCallback = (progress: number) => void;
+
+// Upload file with progress tracking using XMLHttpRequest
+const uploadFileWithProgress = (
+  file: Blob, 
+  fileName: string, 
+  onProgress?: UploadProgressCallback
+): Promise<UploadResult> => {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file, fileName);
+
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable && onProgress) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        onProgress(progress);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          resolve(result);
+        } catch {
+          reject(new Error('Failed to parse upload response'));
+        }
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload aborted'));
+    });
+
+    xhr.open('POST', `${API_BASE}/upload`);
+    xhr.send(formData);
+  });
+};
+
+// Save item with optional progress tracking
+export const saveItem = async (
+  item: Omit<Item, 'id' | 'createdAt'>,
+  onProgress?: UploadProgressCallback
+): Promise<Item> => {
   let fileKey: string | undefined;
   let fileName: string | undefined;
   let fileSize: number | undefined;
@@ -86,19 +137,12 @@ export const saveItem = async (item: Omit<Item, 'id' | 'createdAt'>): Promise<It
 
   // Upload file first if exists
   if (item.fileBlob) {
-    const formData = new FormData();
-    formData.append('file', item.fileBlob, item.fileName || 'file');
+    const uploadResult = await uploadFileWithProgress(
+      item.fileBlob,
+      item.fileName || 'file',
+      onProgress
+    );
     
-    const uploadResponse = await fetch(`${API_BASE}/upload`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error('Failed to upload file');
-    }
-
-    const uploadResult: UploadResult = await uploadResponse.json();
     fileKey = uploadResult.fileKey;
     fileName = uploadResult.fileName;
     fileSize = uploadResult.fileSize;

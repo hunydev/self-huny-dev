@@ -7,9 +7,11 @@ import ItemModal from './components/ItemModal';
 import SettingsModal from './components/SettingsModal';
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
+import UploadProgress from './components/UploadProgress';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
+import { UploadProvider, useUpload } from './contexts/UploadContext';
 import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
 
@@ -40,6 +42,7 @@ const AuthenticatedContent: React.FC = () => {
   const inputAreaRef = useRef<InputAreaHandle>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
+  const { addUpload, updateUpload } = useUpload();
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -267,12 +270,64 @@ const AuthenticatedContent: React.FC = () => {
   }, []);
 
   const handleSaveItem = async (draft: Omit<Item, 'id' | 'createdAt'>) => {
+    // Check if this is a file upload
+    const isFileUpload = draft.fileBlob && (
+      draft.type === ItemType.IMAGE || 
+      draft.type === ItemType.VIDEO || 
+      draft.type === ItemType.FILE
+    );
+
+    let uploadId: string | null = null;
+
+    // If file upload, add to upload queue
+    if (isFileUpload && draft.fileBlob) {
+      uploadId = crypto.randomUUID();
+      
+      // Create preview URL for images/videos
+      let previewUrl: string | undefined;
+      if (draft.type === ItemType.IMAGE || draft.type === ItemType.VIDEO) {
+        previewUrl = URL.createObjectURL(draft.fileBlob);
+      }
+
+      addUpload({
+        id: uploadId,
+        fileName: draft.fileName || 'file',
+        fileSize: draft.fileBlob.size,
+        type: draft.type === ItemType.IMAGE ? 'image' : draft.type === ItemType.VIDEO ? 'video' : 'file',
+        previewUrl,
+      });
+
+      // Update status to uploading
+      updateUpload(uploadId, { status: 'uploading' });
+    }
+
     try {
-      const newItem = await db.saveItem(draft);
+      const newItem = await db.saveItem(draft, (progress) => {
+        if (uploadId) {
+          updateUpload(uploadId, { progress, status: 'uploading' });
+        }
+      });
+
+      // Update status to processing briefly, then completed
+      if (uploadId) {
+        updateUpload(uploadId, { status: 'processing', progress: 100 });
+        setTimeout(() => {
+          updateUpload(uploadId!, { status: 'completed' });
+        }, 500);
+      }
+
       setItems(prev => [newItem, ...prev]);
       showToast('아이템이 추가되었습니다', 'success');
     } catch (err) {
       console.error("Failed to save item", err);
+      
+      if (uploadId) {
+        updateUpload(uploadId, { 
+          status: 'error', 
+          error: err instanceof Error ? err.message : '업로드 실패'
+        });
+      }
+      
       showToast('아이템 추가에 실패했습니다', 'error');
     }
   };
@@ -684,7 +739,12 @@ const AppContent: React.FC = () => {
     return <LoginScreen />;
   }
 
-  return <AuthenticatedContent />;
+  return (
+    <>
+      <AuthenticatedContent />
+      <UploadProgress />
+    </>
+  );
 };
 
 const App: React.FC = () => {
@@ -692,7 +752,9 @@ const App: React.FC = () => {
     <AuthProvider>
       <SettingsProvider>
         <ToastProvider>
-          <AppContent />
+          <UploadProvider>
+            <AppContent />
+          </UploadProvider>
         </ToastProvider>
       </SettingsProvider>
     </AuthProvider>
