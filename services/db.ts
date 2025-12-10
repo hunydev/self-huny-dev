@@ -93,6 +93,18 @@ export const getItems = async (type?: ItemType | 'all', encrypted?: boolean): Pr
   return data.map(transformItem);
 };
 
+// Get single item by ID
+export const getItem = async (id: string): Promise<Item> => {
+  const response = await fetch(`${API_BASE}/items/${id}`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch item');
+  }
+  
+  const data: ApiItem = await response.json();
+  return transformItem(data);
+};
+
 // Upload progress callback type
 export type UploadProgressCallback = (progress: number) => void;
 

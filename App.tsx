@@ -438,27 +438,46 @@ const AuthenticatedContent: React.FC = () => {
         title
       );
       
-      // 아이템 상태 업데이트
-      setItems(prev => prev.map(item =>
-        item.id === encryptionTarget.id
-          ? { 
-              ...item, 
-              isEncrypted: !encryptionTarget.isEncrypted,
-              title: title || item.title,
-              // 암호화 시 fileKey 숨기기
-              fileKey: !encryptionTarget.isEncrypted ? undefined : item.fileKey,
-            }
-          : item
-      ));
-      
-      // 선택된 아이템이면 같이 업데이트
-      if (selectedItem?.id === encryptionTarget.id) {
-        setSelectedItem(prev => prev ? {
-          ...prev,
-          isEncrypted: !encryptionTarget.isEncrypted,
-          title: title || prev.title,
-          fileKey: !encryptionTarget.isEncrypted ? undefined : prev.fileKey,
-        } : null);
+      // 암호화 해제 시 서버에서 아이템을 다시 불러와 content 복원
+      if (encryptionTarget.isEncrypted) {
+        // 암호화 해제: 서버에서 전체 데이터 가져오기
+        const updatedItem = await db.getItem(encryptionTarget.id);
+        
+        setItems(prev => prev.map(item =>
+          item.id === encryptionTarget.id ? updatedItem : item
+        ));
+        
+        if (selectedItem?.id === encryptionTarget.id) {
+          setSelectedItem(updatedItem);
+        }
+      } else {
+        // 암호화 설정: 로컬에서 업데이트
+        setItems(prev => prev.map(item =>
+          item.id === encryptionTarget.id
+            ? { 
+                ...item, 
+                isEncrypted: true,
+                title: title || item.title,
+                // 암호화 시 민감 데이터 숨기기
+                content: '',
+                fileKey: undefined,
+                ogImage: undefined,
+                ogDescription: undefined,
+              }
+            : item
+        ));
+        
+        if (selectedItem?.id === encryptionTarget.id) {
+          setSelectedItem(prev => prev ? {
+            ...prev,
+            isEncrypted: true,
+            title: title || prev.title,
+            content: '',
+            fileKey: undefined,
+            ogImage: undefined,
+            ogDescription: undefined,
+          } : null);
+        }
       }
       
       showToast(
