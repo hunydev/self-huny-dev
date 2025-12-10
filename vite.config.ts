@@ -35,6 +35,15 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-utils': ['date-fns', 'jszip'],
+            'vendor-icons': ['lucide-react'],
+          },
+        },
+      },
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
