@@ -145,13 +145,16 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       return;
     }
     
+    // 디버깅: 클립보드에서 사용 가능한 모든 타입 확인
+    console.log('[Paste Debug] Available types:', e.clipboardData?.types);
+    for (const type of e.clipboardData?.types || []) {
+      const data = e.clipboardData?.getData(type);
+      console.log(`[Paste Debug] ${type}:`, data?.substring(0, 300));
+    }
+    
     // HTML 서식 붙여넣기 처리
     const html = e.clipboardData?.getData('text/html');
     const plainText = e.clipboardData?.getData('text/plain');
-    
-    // 디버깅: 클립보드 내용 확인
-    console.log('[Paste Debug] HTML:', html?.substring(0, 500));
-    console.log('[Paste Debug] Has rich formatting:', html ? hasRichFormatting(html) : false);
     
     if (html && plainText) {
       // HTML이 서식을 포함하는지 확인
