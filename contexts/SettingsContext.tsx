@@ -4,7 +4,6 @@ export interface Settings {
   gridColumns: 2 | 3 | 4 | 5 | 6;
   dateFormat: 'relative' | 'absolute' | 'both' | 'iso';
   groupBy: 'day' | 'week' | 'month';
-  showItemCount: boolean;
   compactMode: boolean;
   submitShortcut: 'enter' | 'ctrl+enter';
   imageFit: 'cover' | 'contain';
@@ -14,7 +13,6 @@ const defaultSettings: Settings = {
   gridColumns: 4,
   dateFormat: 'iso',
   groupBy: 'day',
-  showItemCount: true,
   compactMode: false,
   submitShortcut: 'ctrl+enter',
   imageFit: 'cover',

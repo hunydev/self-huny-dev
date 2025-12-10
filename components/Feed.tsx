@@ -112,11 +112,9 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               {getDateLabel(dateKey)}
             </h2>
-            {settings.showItemCount && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded-full font-medium">
-                {groupedItems[dateKey].length}
-              </span>
-            )}
+            <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded-full font-medium">
+              {groupedItems[dateKey].length}
+            </span>
           </div>
           {settings.compactMode ? (
             /* Compact list view */

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, RotateCcw } from 'lucide-react';
+import { X, RotateCcw, Grid3X3, List } from 'lucide-react';
 import { useSettings, Settings } from '../contexts/SettingsContext';
 
 interface SettingsModalProps {
@@ -11,6 +11,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { settings, updateSetting, resetSettings } = useSettings();
 
   if (!isOpen) return null;
+
+  const isGridView = !settings.compactMode;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -32,130 +34,129 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           
-          {/* Grid Columns */}
+          {/* View Type */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Grid Columns (Desktop)
-            </label>
-            <div className="flex gap-2">
-              {([2, 3, 4, 5, 6] as const).map(num => (
-                <button
-                  key={num}
-                  onClick={() => updateSetting('gridColumns', num)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    settings.gridColumns === num
-                      ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Date Format */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Date Format
-            </label>
-            <select
-              value={settings.dateFormat}
-              onChange={(e) => updateSetting('dateFormat', e.target.value as Settings['dateFormat'])}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="iso">ISO (2025-12-06)</option>
-              <option value="relative">Relative (Today, Yesterday...)</option>
-              <option value="absolute">Absolute (Dec 6, 2025)</option>
-              <option value="both">Both (Today - Dec 6, 2025)</option>
-            </select>
-          </div>
-
-          {/* Group By */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Group Items By
-            </label>
-            <select
-              value={settings.groupBy}
-              onChange={(e) => updateSetting('groupBy', e.target.value as Settings['groupBy'])}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="day">Day</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-            </select>
-          </div>
-
-          {/* Toggle Options */}
-          <div className="space-y-3">
-            <label className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">Show Item Count</span>
-              <button
-                onClick={() => updateSetting('showItemCount', !settings.showItemCount)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  settings.showItemCount ? 'bg-indigo-600' : 'bg-slate-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    settings.showItemCount ? 'translate-x-5' : ''
-                  }`}
-                />
-              </button>
-            </label>
-
-            <label className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">Compact Mode</span>
-              <button
-                onClick={() => updateSetting('compactMode', !settings.compactMode)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  settings.compactMode ? 'bg-indigo-600' : 'bg-slate-300'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    settings.compactMode ? 'translate-x-5' : ''
-                  }`}
-                />
-              </button>
-            </label>
-          </div>
-
-          {/* Image Fit Mode */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              이미지 표시 방식
+              View Type
             </label>
             <div className="flex gap-2">
               <button
-                onClick={() => updateSetting('imageFit', 'cover')}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                  settings.imageFit === 'cover'
+                onClick={() => updateSetting('compactMode', false)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                  isGridView
                     ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
                 }`}
               >
-                Fill (채우기)
+                <Grid3X3 size={16} />
+                Grid
               </button>
               <button
-                onClick={() => updateSetting('imageFit', 'contain')}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                  settings.imageFit === 'contain'
+                onClick={() => updateSetting('compactMode', true)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                  !isGridView
                     ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
                 }`}
               >
-                Fit (맞추기)
+                <List size={16} />
+                List
               </button>
             </div>
-            <p className="text-xs text-slate-500 mt-1.5">
-              {settings.imageFit === 'cover' 
-                ? '이미지를 잘라서 영역을 채웁니다' 
-                : '이미지 전체가 보이도록 맞춥니다'}
-            </p>
+          </div>
+
+          {/* Grid View Options - Only show when Grid is selected */}
+          {isGridView && (
+            <div className="pl-3 border-l-2 border-indigo-200 space-y-4">
+              {/* Grid Columns */}
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">
+                  Grid Columns (Desktop)
+                </label>
+                <div className="flex gap-1.5">
+                  {([2, 3, 4, 5, 6] as const).map(num => (
+                    <button
+                      key={num}
+                      onClick={() => updateSetting('gridColumns', num)}
+                      className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        settings.gridColumns === num
+                          ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Image Fit Mode */}
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">
+                  이미지 표시 방식
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => updateSetting('imageFit', 'cover')}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-sm font-medium transition-colors ${
+                      settings.imageFit === 'cover'
+                        ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
+                    }`}
+                  >
+                    Fill (채우기)
+                  </button>
+                  <button
+                    onClick={() => updateSetting('imageFit', 'contain')}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-sm font-medium transition-colors ${
+                      settings.imageFit === 'contain'
+                        ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
+                    }`}
+                  >
+                    Fit (맞추기)
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Date Format & Group By - 2 columns on desktop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Date Format */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Date Format
+              </label>
+              <select
+                value={settings.dateFormat}
+                onChange={(e) => updateSetting('dateFormat', e.target.value as Settings['dateFormat'])}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="iso">ISO (2025-12-06)</option>
+                <option value="relative">Relative</option>
+                <option value="absolute">Absolute</option>
+                <option value="both">Both</option>
+              </select>
+            </div>
+
+            {/* Group By */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Group Items By
+              </label>
+              <select
+                value={settings.groupBy}
+                onChange={(e) => updateSetting('groupBy', e.target.value as Settings['groupBy'])}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+              </select>
+            </div>
           </div>
 
           {/* Submit Shortcut */}
@@ -201,7 +202,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <RotateCcw size={16} />
-            Reset to Defaults
+            Reset
           </button>
           <button
             onClick={onClose}
