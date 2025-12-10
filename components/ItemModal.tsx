@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
 import { getFileUrl, unlockItem, toggleEncryption, updateItemTitle } from '../services/db';
 import { suggestTitle } from '../services/geminiService';
 import { linkifyText } from '../utils/linkify';
@@ -89,6 +89,9 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   const [imageMetadata, setImageMetadata] = useState<ImageMetadata | null>(null);
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
   const [showMetadata, setShowMetadata] = useState(false);
+  
+  // 이미지 전체화면 상태
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
   
   // 실제 표시할 아이템 (잠금 해제된 경우 unlockedItem, 아니면 원본)
   const displayItem = item?.isEncrypted && unlockedItem ? unlockedItem : item;
@@ -269,23 +272,34 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       case ItemType.IMAGE:
         return (
           <div className="space-y-3">
-            <div className="flex items-center justify-center bg-black/5 rounded-lg overflow-hidden max-h-[60vh]">
+            <div className="relative flex items-center justify-center bg-black/5 rounded-lg overflow-hidden max-h-[60vh] group">
               {fileUrl ? (
-                <img 
-                  src={fileUrl} 
-                  alt={contentItem.fileName} 
-                  className="max-w-full max-h-[60vh] object-contain"
-                  onLoad={(e) => {
-                    const img = e.target as HTMLImageElement;
-                    const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
-                    const divisor = gcd(img.naturalWidth, img.naturalHeight);
-                    setImageMetadata({
-                      width: img.naturalWidth,
-                      height: img.naturalHeight,
-                      aspectRatio: `${img.naturalWidth / divisor}:${img.naturalHeight / divisor}`
-                    });
-                  }}
-                />
+                <>
+                  <img 
+                    src={fileUrl} 
+                    alt={contentItem.fileName} 
+                    className="max-w-full max-h-[60vh] object-contain cursor-pointer"
+                    onClick={() => setIsImageFullscreen(true)}
+                    onLoad={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+                      const divisor = gcd(img.naturalWidth, img.naturalHeight);
+                      setImageMetadata({
+                        width: img.naturalWidth,
+                        height: img.naturalHeight,
+                        aspectRatio: `${img.naturalWidth / divisor}:${img.naturalHeight / divisor}`
+                      });
+                    }}
+                  />
+                  {/* 확대 버튼 */}
+                  <button
+                    onClick={() => setIsImageFullscreen(true)}
+                    className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="크게 보기"
+                  >
+                    <Maximize2 size={18} />
+                  </button>
+                </>
               ) : (
                 <div className="flex items-center justify-center h-64 text-slate-300">
                   <ImageIcon size={48} />
@@ -924,6 +938,54 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
           fileSize={contentItem.fileSize}
           onDownload={handleDownload}
         />
+      )}
+
+      {/* Image Fullscreen Overlay */}
+      {isImageFullscreen && fileUrl && contentItem.type === ItemType.IMAGE && (
+        <div 
+          className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
+          onClick={() => setIsImageFullscreen(false)}
+        >
+          {/* 컨트롤 버튼들 */}
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownload();
+              }}
+              className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              title="다운로드"
+            >
+              <Download size={20} />
+            </button>
+            <button
+              onClick={() => setIsImageFullscreen(false)}
+              className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              title="닫기"
+            >
+              <Minimize2 size={20} />
+            </button>
+          </div>
+          
+          {/* 이미지 */}
+          <img 
+            src={fileUrl} 
+            alt={contentItem.fileName}
+            className="max-w-[95vw] max-h-[95vh] object-contain select-none"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+          />
+          
+          {/* 파일 정보 */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 rounded-lg text-white text-sm">
+            {contentItem.fileName}
+            {imageMetadata && (
+              <span className="ml-2 text-white/70">
+                ({imageMetadata.width} × {imageMetadata.height})
+              </span>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
