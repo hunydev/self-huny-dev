@@ -368,11 +368,9 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       >
         {/* Thumbnail or Icon */}
         <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
-          {item.isEncrypted ? (
-            <LockKeyhole size={16} className="text-slate-400" />
-          ) : (item.type === ItemType.IMAGE && fileUrl) ? (
+          {(item.type === ItemType.IMAGE && fileUrl && !item.isEncrypted) ? (
             <img src={fileUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-          ) : (item.ogImage) ? (
+          ) : (item.ogImage && !item.isEncrypted) ? (
             <img src={item.ogImage} alt="" className="w-full h-full object-cover" loading="lazy" />
           ) : (
             getTypeIcon()
@@ -447,9 +445,6 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-medium">{formattedDate}</span>
-          {item.isEncrypted && (
-            <LockKeyhole size={12} className="text-slate-400" />
-          )}
         </div>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
