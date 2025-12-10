@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import ImportExportModal from './ImportExportModal';
+import ExportModal from './ExportModal';
+import ImportModal from './ImportModal';
 
 const UserMenu: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [showImportExport, setShowImportExport] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -100,18 +102,32 @@ const UserMenu: React.FC = () => {
 
           {/* Menu Items */}
           <div className="p-2">
-            {/* Import/Export Button */}
+            {/* Export Button */}
             <button
               onClick={() => {
-                setShowImportExport(true);
+                setShowExport(true);
                 setIsOpen(false);
               }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              내보내기 / 가져오기
+              내보내기
+            </button>
+
+            {/* Import Button */}
+            <button
+              onClick={() => {
+                setShowImport(true);
+                setIsOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              가져오기
             </button>
 
             {/* Logout Button */}
@@ -128,10 +144,16 @@ const UserMenu: React.FC = () => {
         </div>
       )}
 
-      {/* Import/Export Modal */}
-      <ImportExportModal
-        isOpen={showImportExport}
-        onClose={() => setShowImportExport(false)}
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExport}
+        onClose={() => setShowExport(false)}
+      />
+
+      {/* Import Modal */}
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
         onImportComplete={() => {
           // Trigger a refresh of the items list
           window.location.reload();
