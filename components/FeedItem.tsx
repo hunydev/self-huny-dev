@@ -1,12 +1,17 @@
 import React, { useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import { useToast } from '../contexts/ToastContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { checkPreviewSupport } from '../services/filePreviewService';
+
+// YouTube URL 감지
+const isYouTubeUrl = (url: string): boolean => {
+  return /(?:youtube\.com|youtu\.be)/.test(url);
+};
 
 interface FeedItemProps {
   item: Item;
@@ -139,11 +144,12 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
           </div>
         );
       case ItemType.LINK:
+        const isYouTube = isYouTubeUrl(item.content);
         // If OG image exists, show rich preview card
         if (item.ogImage) {
           return (
             <div className="flex flex-col h-full">
-              {/* OG Image */}
+              {/* OG Image with YouTube play overlay */}
               <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
                 <img 
                   src={item.ogImage} 
@@ -155,6 +161,14 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
+                {/* YouTube Play Button Overlay */}
+                {isYouTube && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors">
+                    <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg">
+                      <Play size={24} className="text-white ml-1" fill="white" />
+                    </div>
+                  </div>
+                )}
               </div>
               {/* Content */}
               <div className="p-3 bg-white flex flex-col gap-1.5 flex-1">
@@ -172,7 +186,11 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
                 )}
                 {/* Full URL */}
                 <div className="flex items-center gap-1.5 text-indigo-500 mt-auto pt-1">
-                  <ExternalLink size={12} className="flex-shrink-0" />
+                  {isYouTube ? (
+                    <Play size={12} className="flex-shrink-0 text-red-500" />
+                  ) : (
+                    <ExternalLink size={12} className="flex-shrink-0" />
+                  )}
                   <span className="text-[11px] font-medium truncate hover:underline">{item.content}</span>
                 </div>
               </div>

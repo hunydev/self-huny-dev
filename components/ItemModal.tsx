@@ -1,11 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play } from 'lucide-react';
 import { getFileUrl, unlockItem, toggleEncryption } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
 import { checkPreviewSupport, formatFileSize } from '../services/filePreviewService';
 import EncryptionUnlock from './EncryptionUnlock';
+
+// YouTube URL에서 비디오 ID 추출
+const getYouTubeVideoId = (url: string): string | null => {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+};
 
 interface ItemModalProps {
   item: Item | null;
@@ -230,6 +244,52 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         );
       
       case ItemType.LINK:
+        const youtubeId = getYouTubeVideoId(contentItem.content);
+        
+        // YouTube 링크인 경우 임베드 플레이어 표시
+        if (youtubeId) {
+          return (
+            <div className="space-y-4">
+              {/* YouTube Embed Player */}
+              <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+                <iframe
+                  src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
+                  title={contentItem.ogTitle || contentItem.title || 'YouTube Video'}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="absolute inset-0 w-full h-full"
+                />
+              </div>
+              
+              {/* Video Info */}
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                {(contentItem.ogTitle || contentItem.title) && (
+                  <h3 className="text-lg font-semibold text-slate-800 mb-2 leading-snug">
+                    {contentItem.ogTitle || contentItem.title}
+                  </h3>
+                )}
+                {contentItem.ogDescription && (
+                  <p className="text-sm text-slate-500 mb-3 leading-relaxed line-clamp-3">
+                    {contentItem.ogDescription}
+                  </p>
+                )}
+                <div className="flex items-center gap-2 text-indigo-600 mt-2">
+                  <Play size={14} className="flex-shrink-0" />
+                  <a 
+                    href={contentItem.content} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-sm font-medium hover:underline"
+                  >
+                    YouTube에서 열기
+                  </a>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        
+        // 일반 링크
         return (
           <div className="rounded-lg overflow-hidden border border-slate-200 bg-white">
             {/* OG Image */}
