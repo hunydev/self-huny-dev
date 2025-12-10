@@ -55,7 +55,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [showTagInput, setShowTagInput] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [editTagName, setEditTagName] = useState('');
-  const [editTagKeywords, setEditTagKeywords] = useState('');
+  const [editTagKeywords, setEditTagKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState('');
   const [showTagModal, setShowTagModal] = useState(false);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
 
@@ -74,12 +75,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (tag) {
       setEditingTag(tag);
       setEditTagName(tag.name);
-      setEditTagKeywords((tag.autoKeywords || []).join(', '));
+      setEditTagKeywords(tag.autoKeywords || []);
+      setKeywordInput('');
       setIsCreatingTag(false);
     } else {
       setEditingTag(null);
       setEditTagName('');
-      setEditTagKeywords('');
+      setEditTagKeywords([]);
+      setKeywordInput('');
       setIsCreatingTag(true);
     }
     setShowTagModal(true);
@@ -89,26 +92,43 @@ const Sidebar: React.FC<SidebarProps> = ({
     setShowTagModal(false);
     setEditingTag(null);
     setEditTagName('');
-    setEditTagKeywords('');
+    setEditTagKeywords([]);
+    setKeywordInput('');
     setIsCreatingTag(false);
   };
 
   const handleSaveTag = () => {
     if (!editTagName.trim()) return;
 
-    const keywords = editTagKeywords
-      .split(',')
-      .map(k => k.trim())
-      .filter(k => k.length > 0);
-
     if (editingTag) {
       onUpdateTag({
         ...editingTag,
         name: editTagName.trim(),
-        autoKeywords: keywords,
+        autoKeywords: editTagKeywords,
       });
     }
     closeTagModal();
+  };
+
+  const addKeyword = (keyword: string) => {
+    const trimmed = keyword.trim().toLowerCase();
+    if (trimmed && !editTagKeywords.includes(trimmed)) {
+      setEditTagKeywords([...editTagKeywords, trimmed]);
+    }
+    setKeywordInput('');
+  };
+
+  const removeKeyword = (keyword: string) => {
+    setEditTagKeywords(editTagKeywords.filter(k => k !== keyword));
+  };
+
+  const handleKeywordInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addKeyword(keywordInput);
+    } else if (e.key === 'Backspace' && !keywordInput && editTagKeywords.length > 0) {
+      removeKeyword(editTagKeywords[editTagKeywords.length - 1]);
+    }
   };
 
   const handleAddTag = (e: React.FormEvent) => {
@@ -347,15 +367,40 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Auto-classification Keywords
                 </label>
-                <textarea
-                  value={editTagKeywords}
-                  onChange={(e) => setEditTagKeywords(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                  placeholder="Enter keywords separated by commas (e.g., youtube.com, youtu.be)"
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Items containing these keywords will be automatically tagged.
+                <div className="border border-slate-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent">
+                  {/* 키워드 칩 목록 */}
+                  {editTagKeywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 p-2 pb-0">
+                      {editTagKeywords.map((keyword) => (
+                        <span
+                          key={keyword}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-md"
+                        >
+                          {keyword}
+                          <button
+                            type="button"
+                            onClick={() => removeKeyword(keyword)}
+                            className="hover:bg-indigo-200 rounded-full p-0.5 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* 입력 필드 */}
+                  <input
+                    type="text"
+                    value={keywordInput}
+                    onChange={(e) => setKeywordInput(e.target.value)}
+                    onKeyDown={handleKeywordInputKeyDown}
+                    onBlur={() => keywordInput && addKeyword(keywordInput)}
+                    className="w-full px-3 py-2 border-0 focus:outline-none focus:ring-0 bg-transparent"
+                    placeholder={editTagKeywords.length > 0 ? "Add more..." : "Type and press Enter to add..."}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 mt-1.5">
+                  Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Enter</kbd> or <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">,</kbd> to add. <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-mono">Backspace</kbd> to remove last.
                 </p>
               </div>
             </div>
