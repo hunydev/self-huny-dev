@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import ImportExportModal from './ImportExportModal';
 
 const UserMenu: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [showImportExport, setShowImportExport] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,6 +100,21 @@ const UserMenu: React.FC = () => {
 
           {/* Menu Items */}
           <div className="p-2">
+            {/* Import/Export Button */}
+            <button
+              onClick={() => {
+                setShowImportExport(true);
+                setIsOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              내보내기 / 가져오기
+            </button>
+
+            {/* Logout Button */}
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
@@ -110,6 +127,16 @@ const UserMenu: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Import/Export Modal */}
+      <ImportExportModal
+        isOpen={showImportExport}
+        onClose={() => setShowImportExport(false)}
+        onImportComplete={() => {
+          // Trigger a refresh of the items list
+          window.location.reload();
+        }}
+      />
     </div>
   );
 };
