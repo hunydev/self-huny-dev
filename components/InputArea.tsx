@@ -606,44 +606,44 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
           </div>
 
           {/* Options: Code & Encryption */}
-          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
             {/* Code Toggle */}
             <button
               type="button"
               onClick={() => setIsCode(!isCode)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                 isCode
                   ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                   : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
               }`}
             >
               <Code size={16} />
-              코드
+              <span className="hidden sm:inline">코드</span>
             </button>
             {/* Encryption Toggle */}
             <button
               type="button"
               onClick={() => setIsEncrypted(!isEncrypted)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                 isEncrypted
                   ? 'bg-amber-100 text-amber-700 border border-amber-200'
                   : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
               }`}
             >
               <LockKeyhole size={16} />
-              암호화
+              <span className="hidden sm:inline">암호화</span>
             </button>
             {isEncrypted && (
-              <input
-                type="password"
-                value={encryptionKey}
-                onChange={(e) => setEncryptionKey(e.target.value)}
-                placeholder="암호화 비밀번호 입력..."
-                className="flex-1 text-sm px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
-              />
-            )}
-            {isEncrypted && (
-              <span className="text-xs text-amber-600">제목 필수</span>
+              <>
+                <input
+                  type="password"
+                  value={encryptionKey}
+                  onChange={(e) => setEncryptionKey(e.target.value)}
+                  placeholder="비밀번호..."
+                  className="flex-1 min-w-[100px] max-w-[180px] text-sm px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+                <span className="text-xs text-amber-600 whitespace-nowrap">제목 필수</span>
+              </>
             )}
           </div>
 
