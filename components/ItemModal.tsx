@@ -688,10 +688,35 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         return (
           <div className="p-6 bg-white rounded-lg border border-slate-100">
             {contentItem.htmlContent ? (
-              <div 
-                className="text-slate-700 leading-relaxed select-text prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentItem.htmlContent) }}
-              />
+              <>
+                <div 
+                  className="text-slate-700 leading-relaxed select-text prose prose-sm max-w-none overflow-x-auto modal-html-content"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentItem.htmlContent) }}
+                />
+                <style>{`
+                  .modal-html-content table {
+                    width: 100%;
+                    max-width: 100%;
+                    border-collapse: collapse;
+                    font-size: 14px;
+                    display: block;
+                    overflow-x: auto;
+                  }
+                  .modal-html-content td, .modal-html-content th {
+                    padding: 8px 12px;
+                    border: 1px solid #e2e8f0;
+                    min-width: 80px;
+                  }
+                  .modal-html-content th {
+                    background-color: #f8fafc;
+                    font-weight: 600;
+                  }
+                  .modal-html-content pre {
+                    overflow-x: auto;
+                    max-width: 100%;
+                  }
+                `}</style>
+              </>
             ) : (
               <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
                 {linkifyText(contentItem.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}

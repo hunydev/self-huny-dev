@@ -413,7 +413,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
           return (
             <div className="p-4 bg-white flex flex-col h-full min-h-[100px] max-h-[200px] overflow-hidden">
               <div 
-                className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none overflow-hidden"
+                className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none overflow-hidden html-content-container"
                 style={{ 
                   display: '-webkit-box', 
                   WebkitLineClamp: 6, 
@@ -422,6 +422,21 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
                 }}
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.htmlContent) }}
               />
+              <style>{`
+                .html-content-container table {
+                  width: 100%;
+                  table-layout: fixed;
+                  border-collapse: collapse;
+                  font-size: 12px;
+                }
+                .html-content-container td, .html-content-container th {
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                  padding: 4px 8px;
+                  border: 1px solid #e2e8f0;
+                }
+              `}</style>
             </div>
           );
         }

@@ -458,9 +458,29 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             </button>
           </div>
           <div 
-            className="text-sm text-slate-700 bg-white rounded p-2 border border-purple-100 max-h-[150px] overflow-y-auto prose prose-sm max-w-none"
+            className="text-sm text-slate-700 bg-white rounded p-2 border border-purple-100 max-h-[150px] overflow-auto prose prose-sm max-w-none preview-html-content"
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
           />
+          <style>{`
+            .preview-html-content table {
+              width: 100%;
+              max-width: 100%;
+              border-collapse: collapse;
+              font-size: 12px;
+            }
+            .preview-html-content td, .preview-html-content th {
+              padding: 4px 8px;
+              border: 1px solid #e2e8f0;
+              max-width: 150px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
+            .preview-html-content th {
+              background-color: #f8fafc;
+              font-weight: 600;
+            }
+          `}</style>
         </div>
       )}
 
