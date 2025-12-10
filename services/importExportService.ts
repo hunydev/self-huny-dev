@@ -1,5 +1,4 @@
-import JSZip from 'jszip';
-import { Item, ItemType, Tag } from '../types';
+import { ItemType, Tag } from '../types';
 import { getItems, getTags, getFileUrl, saveItem, saveTag } from './db';
 
 // Export data structure
@@ -391,6 +390,7 @@ const getFileFolder = (type: ItemType): string => {
 
 // Export all items to a zip file
 export const exportData = async (onProgress?: ExportProgressCallback): Promise<Blob> => {
+  const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
   
   // Phase 1: Fetching items
@@ -522,6 +522,7 @@ export const validateImportFile = async (file: File): Promise<ValidationResult> 
   let totalFileSize = 0;
 
   try {
+    const JSZip = (await import('jszip')).default;
     const zip = await JSZip.loadAsync(file);
     
     // Check for manifest file
@@ -636,6 +637,7 @@ export const importData = async (
     };
   }
 
+  const JSZip = (await import('jszip')).default;
   const zip = await JSZip.loadAsync(file);
   const data = validation.data;
 
