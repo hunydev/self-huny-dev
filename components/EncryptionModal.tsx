@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, LockKeyhole, Unlock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { X, LockKeyhole, Unlock, Eye, EyeOff, AlertCircle, Wand2, Loader2 } from 'lucide-react';
+import { suggestTitle } from '../services/geminiService';
 
 interface EncryptionModalProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface EncryptionModalProps {
   mode: 'encrypt' | 'decrypt' | 'delete';
   currentTitle?: string;
   requireTitle?: boolean;
+  content?: string; // 아이템 내용 (AI 제목 추천용)
   onConfirm: (key: string, title?: string) => Promise<void>;
 }
 
@@ -16,6 +18,7 @@ const EncryptionModal: React.FC<EncryptionModalProps> = ({
   mode,
   currentTitle,
   requireTitle = false,
+  content,
   onConfirm,
 }) => {
   const [key, setKey] = useState('');
@@ -23,6 +26,7 @@ const EncryptionModal: React.FC<EncryptionModalProps> = ({
   const [title, setTitle] = useState(currentTitle || '');
   const [showKey, setShowKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // currentTitle이 변경될 때 title 상태 업데이트
@@ -65,12 +69,29 @@ const EncryptionModal: React.FC<EncryptionModalProps> = ({
     }
   };
 
+  // AI 제목 추천
+  const handleSuggestTitle = async () => {
+    if (!content) return;
+    setIsSuggestingTitle(true);
+    try {
+      const suggested = await suggestTitle(content);
+      if (suggested) {
+        setTitle(suggested);
+      }
+    } catch (error) {
+      console.error('Failed to suggest title:', error);
+    } finally {
+      setIsSuggestingTitle(false);
+    }
+  };
+
   const handleClose = () => {
     setKey('');
     setConfirmKey('');
     setTitle(currentTitle || '');
     setShowKey(false);
     setError(null);
+    setIsSuggestingTitle(false);
     onClose();
   };
 
@@ -133,14 +154,25 @@ const EncryptionModal: React.FC<EncryptionModalProps> = ({
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 제목 <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="아이템 제목"
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="아이템 제목"
+                  className="w-full px-4 py-2.5 pr-10 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={handleSuggestTitle}
+                  disabled={!content || isSuggestingTitle || isLoading}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="AI로 제목 추천받기"
+                >
+                  {isSuggestingTitle ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                </button>
+              </div>
               <p className="text-xs text-slate-500 mt-1">
                 암호화된 아이템은 제목으로만 구분할 수 있습니다
               </p>

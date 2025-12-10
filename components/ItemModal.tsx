@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code } from 'lucide-react';
-import { getFileUrl, unlockItem, toggleEncryption } from '../services/db';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil } from 'lucide-react';
+import { getFileUrl, unlockItem, toggleEncryption, updateItemTitle } from '../services/db';
+import { suggestTitle } from '../services/geminiService';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
 import { checkPreviewSupport, formatFileSize } from '../services/filePreviewService';
@@ -38,13 +39,19 @@ interface ItemModalProps {
   onClose: () => void;
   onUpdateTags: (itemId: string, tagIds: string[]) => void;
   onToggleEncryption?: (id: string) => void;
+  onUpdateTitle?: (itemId: string, title: string) => void;
 }
 
-const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags, onToggleEncryption }) => {
+const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags, onToggleEncryption, onUpdateTitle }) => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
+  
+  // 제목 편집 상태
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   
   // 암호화된 아이템 잠금 해제 상태
   const [unlockedItem, setUnlockedItem] = useState<Item | null>(null);
@@ -76,6 +83,52 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
     }
   };
 
+  // 제목 편집 시작
+  const handleStartEditTitle = () => {
+    const currentTitle = displayItem?.title || item?.title || '';
+    setEditTitle(currentTitle);
+    setIsEditingTitle(true);
+  };
+
+  // 제목 저장
+  const handleSaveTitle = async () => {
+    if (!item || !onUpdateTitle) return;
+    try {
+      await updateItemTitle(item.id, editTitle);
+      onUpdateTitle(item.id, editTitle);
+      setIsEditingTitle(false);
+    } catch (error) {
+      console.error('Failed to update title:', error);
+    }
+  };
+
+  // 제목 편집 취소
+  const handleCancelEditTitle = () => {
+    setIsEditingTitle(false);
+    setEditTitle('');
+  };
+
+  // AI 제목 추천
+  const handleSuggestTitle = async () => {
+    const content = displayItem?.content || item?.content;
+    if (!content) return;
+    
+    setIsSuggestingTitle(true);
+    try {
+      const suggested = await suggestTitle(content);
+      if (suggested) {
+        setEditTitle(suggested);
+        if (!isEditingTitle) {
+          setIsEditingTitle(true);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to suggest title:', error);
+    } finally {
+      setIsSuggestingTitle(false);
+    }
+  };
+
   // Reset when item changes
   useEffect(() => {
     if (item) {
@@ -85,6 +138,9 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       // 암호화 상태 리셋
       setUnlockedItem(null);
       setUnlockError(null);
+      // 제목 편집 상태 리셋
+      setIsEditingTitle(false);
+      setEditTitle('');
     }
   }, [item?.id, item?.tags]);
 
@@ -481,15 +537,72 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {item.isEncrypted && (
-                <LockKeyhole size={18} className="text-amber-500 flex-shrink-0" />
-              )}
-              {(contentItem.title || item.title) && (
-                <h2 className="font-semibold text-lg text-slate-800 truncate">{contentItem.title || item.title}</h2>
-              )}
-            </div>
-            <p className="text-sm text-slate-400">
+            {/* 제목 편집 모드 */}
+            {isEditingTitle && !isLocked ? (
+              <div className="flex items-center gap-2">
+                {item.isEncrypted && (
+                  <LockKeyhole size={18} className="text-amber-500 flex-shrink-0" />
+                )}
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="제목 입력..."
+                    className="w-full text-lg font-semibold px-3 py-1.5 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveTitle();
+                      if (e.key === 'Escape') handleCancelEditTitle();
+                    }}
+                  />
+                  <button
+                    onClick={handleSuggestTitle}
+                    disabled={!contentItem.content || isSuggestingTitle}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="AI로 제목 추천받기"
+                  >
+                    {isSuggestingTitle ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                  </button>
+                </div>
+                <button
+                  onClick={handleSaveTitle}
+                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                  title="저장"
+                >
+                  <Check size={18} />
+                </button>
+                <button
+                  onClick={handleCancelEditTitle}
+                  className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg"
+                  title="취소"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                {item.isEncrypted && (
+                  <LockKeyhole size={18} className="text-amber-500 flex-shrink-0" />
+                )}
+                {(contentItem.title || item.title) ? (
+                  <h2 className="font-semibold text-lg text-slate-800 truncate">{contentItem.title || item.title}</h2>
+                ) : (
+                  <span className="text-slate-400 text-lg italic">제목 없음</span>
+                )}
+                {/* 제목 편집 버튼 - 잠금 해제 시에만 */}
+                {!isLocked && onUpdateTitle && (
+                  <button
+                    onClick={handleStartEditTitle}
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                    title="제목 편집"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+            <p className="text-sm text-slate-400 mt-1">
               {new Date(contentItem.createdAt).toLocaleString()}
             </p>
           </div>

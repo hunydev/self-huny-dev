@@ -414,6 +414,17 @@ const AuthenticatedContent: React.FC = () => {
     }
   };
 
+  // 제목 업데이트
+  const handleUpdateTitle = (itemId: string, title: string) => {
+    setItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, title } : item
+    ));
+    if (selectedItem?.id === itemId) {
+      setSelectedItem(prev => prev ? { ...prev, title } : null);
+    }
+    showToast('제목이 업데이트되었습니다', 'success');
+  };
+
   // 암호화 토글 모달 열기
   const handleOpenEncryptionModal = (itemId: string) => {
     const item = items.find(i => i.id === itemId);
@@ -795,6 +806,7 @@ const AuthenticatedContent: React.FC = () => {
         onClose={() => setSelectedItem(null)}
         onUpdateTags={handleUpdateItemTags}
         onToggleEncryption={handleOpenEncryptionModal}
+        onUpdateTitle={handleUpdateTitle}
       />
 
       {/* Settings Modal */}
@@ -810,6 +822,7 @@ const AuthenticatedContent: React.FC = () => {
         mode={encryptionTarget?.isEncrypted ? 'decrypt' : 'encrypt'}
         currentTitle={encryptionTarget?.title}
         requireTitle={!encryptionTarget?.isEncrypted}
+        content={items.find(i => i.id === encryptionTarget?.id)?.content}
         onConfirm={handleEncryptionConfirm}
       />
     </div>
