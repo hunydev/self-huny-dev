@@ -411,7 +411,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <img 
-                  src="/icons/favicon-96.png" 
+                  src="/icons/favicon-32.png" 
                   alt="Self" 
                   className="w-16 h-16 rounded-xl"
                 />
