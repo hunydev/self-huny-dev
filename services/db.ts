@@ -155,9 +155,8 @@ const uploadFileWithProgress = (
 
 // Save item with optional progress tracking and encryption
 export const saveItem = async (
-  item: Omit<Item, 'id' | 'createdAt'>,
-  onProgress?: UploadProgressCallback,
-  encryptionKey?: string
+  item: Omit<Item, 'id' | 'createdAt'> & { encryptionKey?: string },
+  onProgress?: UploadProgressCallback
 ): Promise<Item> => {
   let fileKey: string | undefined;
   let fileName: string | undefined;
@@ -180,8 +179,8 @@ export const saveItem = async (
 
   // Generate encryption hash if encryption is enabled
   let encryptionHash: string | undefined;
-  if (item.isEncrypted && encryptionKey) {
-    encryptionHash = await hashEncryptionKey(encryptionKey);
+  if (item.isEncrypted && item.encryptionKey) {
+    encryptionHash = await hashEncryptionKey(item.encryptionKey);
   }
 
   // Create item
