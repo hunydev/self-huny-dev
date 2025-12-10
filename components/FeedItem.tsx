@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Music, Pause } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -11,6 +11,15 @@ import { checkPreviewSupport } from '../services/filePreviewService';
 // YouTube URL 감지
 const isYouTubeUrl = (url: string): boolean => {
   return /(?:youtube\.com|youtu\.be)/.test(url);
+};
+
+// 오디오 파일 확장자 체크
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus', 'webm'];
+const isAudioFile = (fileName?: string, mimeType?: string): boolean => {
+  if (mimeType?.startsWith('audio/')) return true;
+  if (!fileName) return false;
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  return ext ? AUDIO_EXTENSIONS.includes(ext) : false;
 };
 
 interface FeedItemProps {
@@ -26,6 +35,8 @@ interface FeedItemProps {
 const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onToggleFavorite, onToggleEncryption, compact = false }) => {
   const { showToast } = useToast();
   const { settings } = useSettings();
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Get file URL from R2
   const fileUrl = useMemo(() => {
@@ -129,6 +140,42 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
         );
       case ItemType.FILE:
         const previewCheck = item.fileName ? checkPreviewSupport(item.fileName, item.fileSize) : { canPreview: false };
+        const isAudio = isAudioFile(item.fileName, item.mimeType);
+        
+        // 오디오 파일인 경우 별도 UI
+        if (isAudio && fileUrl) {
+          return (
+            <div className="p-4 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-purple-50 to-indigo-50 text-slate-500 gap-3 relative">
+              <div 
+                className="w-14 h-14 bg-white rounded-full shadow-md flex items-center justify-center text-purple-600 cursor-pointer hover:scale-105 transition-transform"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (audioRef.current) {
+                    if (isPlaying) {
+                      audioRef.current.pause();
+                    } else {
+                      audioRef.current.play();
+                    }
+                    setIsPlaying(!isPlaying);
+                  }
+                }}
+              >
+                {isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+              </div>
+              <span className="text-xs font-medium text-center truncate w-full px-2 text-slate-700">{item.fileName}</span>
+              <span className="text-[10px] text-purple-500 uppercase font-medium">{item.fileName?.split('.').pop()}</span>
+              <audio 
+                ref={audioRef} 
+                src={fileUrl} 
+                onEnded={() => setIsPlaying(false)}
+                onPause={() => setIsPlaying(false)}
+                onPlay={() => setIsPlaying(true)}
+                className="hidden"
+              />
+            </div>
+          );
+        }
+        
         return (
           <div className="p-4 flex flex-col items-center justify-center aspect-square bg-slate-50 text-slate-500 gap-2 relative">
             {previewCheck.canPreview && (

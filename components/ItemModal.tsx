@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music } from 'lucide-react';
 import { getFileUrl, unlockItem, toggleEncryption } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
 import { checkPreviewSupport, formatFileSize } from '../services/filePreviewService';
 import EncryptionUnlock from './EncryptionUnlock';
+
+// 오디오 파일 확장자 체크
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus', 'webm'];
+const isAudioFile = (fileName?: string, mimeType?: string): boolean => {
+  if (mimeType?.startsWith('audio/')) return true;
+  if (!fileName) return false;
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  return ext ? AUDIO_EXTENSIONS.includes(ext) : false;
+};
 
 // YouTube URL에서 비디오 ID 추출
 const getYouTubeVideoId = (url: string): string | null => {
@@ -201,6 +210,40 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       
       case ItemType.FILE:
         const previewCheck = contentItem.fileName ? checkPreviewSupport(contentItem.fileName, contentItem.fileSize) : { canPreview: false, reason: 'unsupported' as const, previewType: 'unsupported' as const };
+        const isAudio = isAudioFile(contentItem.fileName, contentItem.mimeType);
+        
+        // 오디오 파일인 경우 별도 UI
+        if (isAudio && fileUrl) {
+          return (
+            <div className="p-8 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg flex flex-col items-center gap-4">
+              <div className="w-20 h-20 bg-white rounded-full shadow-lg flex items-center justify-center text-purple-600">
+                <Music size={40} />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-slate-800">{contentItem.fileName}</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {contentItem.fileSize ? formatFileSize(contentItem.fileSize) : ''}
+                  {contentItem.mimeType ? ` • ${contentItem.mimeType}` : ''}
+                </p>
+              </div>
+              {/* Audio Player */}
+              <audio 
+                src={fileUrl} 
+                controls 
+                className="w-full max-w-md mt-2"
+                controlsList="nodownload"
+              />
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Download size={18} />
+                다운로드
+              </button>
+            </div>
+          );
+        }
+        
         return (
           <div className="p-8 bg-slate-50 rounded-lg flex flex-col items-center gap-4">
             <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center text-indigo-600">
