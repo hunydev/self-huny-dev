@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestMetadata } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
@@ -30,6 +30,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [newTagName, setNewTagName] = useState('');
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState('');
+  const [isCode, setIsCode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevActiveTagFilterRef = useRef<string | null | undefined>(undefined);
 
@@ -200,8 +201,10 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       content: text,
       tags: selectedTags,
       title: title || undefined,
+      isFavorite: false,
       isEncrypted,
       encryptionKey: isEncrypted ? encryptionKey : undefined,
+      isCode: isCode || undefined,
     };
 
     if (file) {
@@ -227,6 +230,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setIsExpanded(false);
     setIsEncrypted(false);
     setEncryptionKey('');
+    setIsCode(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -392,8 +396,22 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             )}
           </div>
 
-          {/* Encryption Option */}
+          {/* Options: Code & Encryption */}
           <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            {/* Code Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsCode(!isCode)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isCode
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Code size={16} />
+              코드
+            </button>
+            {/* Encryption Toggle */}
             <button
               type="button"
               onClick={() => setIsEncrypted(!isEncrypted)}

@@ -29,6 +29,7 @@ export interface Item {
   tags: string[]; // Tag IDs
   isFavorite: boolean; // Favorite flag
   isEncrypted: boolean; // Encryption flag
+  isCode?: boolean; // Code block flag
   createdAt: number;
 }
 

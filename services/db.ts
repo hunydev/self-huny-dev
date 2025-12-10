@@ -17,6 +17,7 @@ interface ApiItem {
   tags: string[];
   isFavorite: boolean;
   isEncrypted: boolean;
+  isCode?: boolean;
   createdAt: number;
 }
 
@@ -50,6 +51,7 @@ const transformItem = (apiItem: ApiItem): Item => ({
   tags: apiItem.tags || [],
   isFavorite: apiItem.isFavorite || false,
   isEncrypted: apiItem.isEncrypted || false,
+  isCode: apiItem.isCode || false,
   createdAt: apiItem.createdAt,
 });
 
@@ -186,6 +188,7 @@ export const saveItem = async (
       title: item.title,
       tags: item.tags,
       isEncrypted: item.isEncrypted,
+      isCode: item.isCode,
       encryptionHash,
     }),
   });

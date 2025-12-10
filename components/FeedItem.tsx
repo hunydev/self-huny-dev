@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Music, Pause } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Music, Pause, Code } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -315,6 +315,21 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
         }
         
         // Plain text without OG preview
+        // 코드 블록 스타일
+        if (item.isCode) {
+          return (
+            <div className="p-3 bg-slate-900 flex flex-col h-full min-h-[100px] overflow-hidden">
+              <div className="flex items-center gap-2 mb-2 text-slate-400">
+                <Code size={14} />
+                <span className="text-[10px] font-medium uppercase tracking-wider">Code</span>
+              </div>
+              <pre className="text-xs text-emerald-400 whitespace-pre-wrap line-clamp-6 leading-relaxed font-mono overflow-x-auto">
+                <code>{item.content}</code>
+              </pre>
+            </div>
+          );
+        }
+        
         return (
           <div className="p-4 bg-white flex flex-col h-full min-h-[100px]">
             <p className="text-sm text-slate-700 whitespace-pre-wrap line-clamp-6 leading-relaxed">

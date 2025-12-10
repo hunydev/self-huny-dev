@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code } from 'lucide-react';
 import { getFileUrl, unlockItem, toggleEncryption } from '../services/db';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
@@ -429,6 +429,34 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         }
         
         // Plain text without OG preview
+        // 코드 블록 스타일
+        if (contentItem.isCode) {
+          return (
+            <div className="rounded-lg overflow-hidden border border-slate-700 bg-slate-900">
+              <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Code size={16} />
+                  <span className="text-xs font-medium">Code</span>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(contentItem.content);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <pre className="p-4 text-sm text-emerald-400 whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto select-text max-h-[60vh] overflow-y-auto">
+                <code>{contentItem.content}</code>
+              </pre>
+            </div>
+          );
+        }
+        
         return (
           <div className="p-6 bg-white rounded-lg border border-slate-100">
             <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">

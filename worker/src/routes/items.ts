@@ -69,6 +69,7 @@ itemsRoutes.get('/', async (c) => {
         tags: row.tag_ids ? row.tag_ids.split(',') : [],
         isFavorite: row.is_favorite === 1,
         isEncrypted,
+        isCode: row.is_code === 1,
         createdAt: row.created_at,
       };
     });
@@ -117,6 +118,7 @@ itemsRoutes.get('/:id', async (c) => {
       tags: item.tag_ids ? (item.tag_ids as string).split(',') : [],
       isFavorite: item.is_favorite === 1,
       isEncrypted,
+      isCode: item.is_code === 1,
       createdAt: item.created_at,
     });
   } catch (error) {
@@ -129,7 +131,7 @@ itemsRoutes.get('/:id', async (c) => {
 itemsRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
-    const { type, content, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash } = body;
+    const { type, content, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode } = body;
 
     // Title is required for encrypted items
     if (isEncrypted && !title) {
@@ -175,8 +177,8 @@ itemsRoutes.post('/', async (c) => {
     }
 
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, 
       type, 
@@ -191,6 +193,7 @@ itemsRoutes.post('/', async (c) => {
       ogDescription,
       isEncrypted ? 1 : 0,
       encryptionHash || null,
+      isCode ? 1 : 0,
       now
     ).run();
 
@@ -219,6 +222,7 @@ itemsRoutes.post('/', async (c) => {
       tags: tags || [], 
       isFavorite: false,
       isEncrypted: !!isEncrypted,
+      isCode: !!isCode,
       createdAt: now 
     }, 201);
   } catch (error) {
@@ -233,7 +237,7 @@ itemsRoutes.put('/:id', async (c) => {
 
   try {
     const body = await c.req.json();
-    const { content, title, tags, isFavorite, isEncrypted, encryptionHash } = body;
+    const { content, title, tags, isFavorite, isEncrypted, encryptionHash, isCode } = body;
 
     // 암호화 해제 시 기존 비밀번호 검증
     if (isEncrypted === false) {
@@ -282,6 +286,10 @@ itemsRoutes.put('/:id', async (c) => {
       // 암호화 해제 시 해시도 null로 설정
       updates.push('encryption_hash = ?');
       params.push(isEncrypted ? encryptionHash : null);
+    }
+    if (isCode !== undefined) {
+      updates.push('is_code = ?');
+      params.push(isCode ? 1 : 0);
     }
     
     if (updates.length > 0) {
