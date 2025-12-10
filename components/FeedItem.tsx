@@ -23,6 +23,79 @@ const isAudioFile = (fileName?: string, mimeType?: string): boolean => {
   return ext ? AUDIO_EXTENSIONS.includes(ext) : false;
 };
 
+// 파일 카테고리별 색상 스타일 정의
+type FileCategory = 'document' | 'spreadsheet' | 'presentation' | 'pdf' | 'archive' | 'code' | 'image' | 'video' | 'audio' | 'font' | 'data' | 'unknown';
+
+const FILE_CATEGORY_MAP: Record<string, FileCategory> = {
+  // Document
+  doc: 'document', docx: 'document', odt: 'document', rtf: 'document', txt: 'document', md: 'document',
+  // Spreadsheet
+  xls: 'spreadsheet', xlsx: 'spreadsheet', ods: 'spreadsheet', csv: 'spreadsheet',
+  // Presentation
+  ppt: 'presentation', pptx: 'presentation', odp: 'presentation', key: 'presentation',
+  // PDF
+  pdf: 'pdf',
+  // Archive
+  zip: 'archive', rar: 'archive', '7z': 'archive', tar: 'archive', gz: 'archive', bz2: 'archive',
+  // Code
+  js: 'code', ts: 'code', jsx: 'code', tsx: 'code', py: 'code', java: 'code', c: 'code', cpp: 'code',
+  h: 'code', hpp: 'code', cs: 'code', go: 'code', rs: 'code', rb: 'code', php: 'code', swift: 'code',
+  kt: 'code', scala: 'code', html: 'code', css: 'code', scss: 'code', sass: 'code', less: 'code',
+  json: 'code', xml: 'code', yaml: 'code', yml: 'code', sql: 'code', sh: 'code', bash: 'code',
+  // Image
+  jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', bmp: 'image', svg: 'image', webp: 'image',
+  ico: 'image', tiff: 'image', psd: 'image', ai: 'image', eps: 'image',
+  // Video
+  mp4: 'video', mkv: 'video', avi: 'video', mov: 'video', wmv: 'video', flv: 'video', webm: 'video',
+  // Audio
+  mp3: 'audio', wav: 'audio', ogg: 'audio', flac: 'audio', aac: 'audio', m4a: 'audio', wma: 'audio',
+  // Font
+  ttf: 'font', otf: 'font', woff: 'font', woff2: 'font', eot: 'font',
+  // Data
+  db: 'data', sqlite: 'data', mdb: 'data',
+};
+
+const FILE_CATEGORY_STYLES: Record<FileCategory, { bg: string; iconBg: string; iconColor: string; extColor: string }> = {
+  document: { bg: 'bg-gradient-to-br from-blue-50 to-blue-100', iconBg: 'bg-blue-500', iconColor: 'text-white', extColor: 'text-blue-600' },
+  spreadsheet: { bg: 'bg-gradient-to-br from-green-50 to-green-100', iconBg: 'bg-green-500', iconColor: 'text-white', extColor: 'text-green-600' },
+  presentation: { bg: 'bg-gradient-to-br from-orange-50 to-orange-100', iconBg: 'bg-orange-500', iconColor: 'text-white', extColor: 'text-orange-600' },
+  pdf: { bg: 'bg-gradient-to-br from-red-50 to-red-100', iconBg: 'bg-red-500', iconColor: 'text-white', extColor: 'text-red-600' },
+  archive: { bg: 'bg-gradient-to-br from-amber-50 to-yellow-100', iconBg: 'bg-amber-500', iconColor: 'text-white', extColor: 'text-amber-600' },
+  code: { bg: 'bg-gradient-to-br from-slate-700 to-slate-800', iconBg: 'bg-slate-600', iconColor: 'text-emerald-400', extColor: 'text-emerald-400' },
+  image: { bg: 'bg-gradient-to-br from-pink-50 to-rose-100', iconBg: 'bg-pink-500', iconColor: 'text-white', extColor: 'text-pink-600' },
+  video: { bg: 'bg-gradient-to-br from-purple-50 to-violet-100', iconBg: 'bg-purple-500', iconColor: 'text-white', extColor: 'text-purple-600' },
+  audio: { bg: 'bg-gradient-to-br from-indigo-50 to-purple-100', iconBg: 'bg-indigo-500', iconColor: 'text-white', extColor: 'text-indigo-600' },
+  font: { bg: 'bg-gradient-to-br from-teal-50 to-cyan-100', iconBg: 'bg-teal-500', iconColor: 'text-white', extColor: 'text-teal-600' },
+  data: { bg: 'bg-gradient-to-br from-cyan-50 to-sky-100', iconBg: 'bg-cyan-500', iconColor: 'text-white', extColor: 'text-cyan-600' },
+  unknown: { bg: 'bg-gradient-to-br from-slate-50 to-slate-100', iconBg: 'bg-slate-400', iconColor: 'text-white', extColor: 'text-slate-500' },
+};
+
+const getFileCategory = (fileName?: string, mimeType?: string): FileCategory => {
+  // MIME type으로 먼저 판단
+  if (mimeType) {
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType.includes('zip') || mimeType.includes('compressed') || mimeType.includes('archive')) return 'archive';
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'spreadsheet';
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'presentation';
+    if (mimeType.includes('document') || mimeType.includes('word') || mimeType.includes('text/plain')) return 'document';
+  }
+  
+  // 확장자로 판단
+  if (!fileName) return 'unknown';
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  if (!ext) return 'unknown';
+  
+  return FILE_CATEGORY_MAP[ext] || 'unknown';
+};
+
+const getFileCategoryStyle = (fileName?: string, mimeType?: string) => {
+  const category = getFileCategory(fileName, mimeType);
+  return FILE_CATEGORY_STYLES[category];
+};
+
 interface FeedItemProps {
   item: Item;
   tags: Tag[];
@@ -177,18 +250,21 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
           );
         }
         
+        const fileStyle = getFileCategoryStyle(item.fileName, item.mimeType);
+        const isCodeCategory = getFileCategory(item.fileName, item.mimeType) === 'code';
+        
         return (
-          <div className="p-4 flex flex-col items-center justify-center aspect-square bg-slate-50 text-slate-500 gap-2 relative">
+          <div className={`p-4 flex flex-col items-center justify-center aspect-square ${fileStyle.bg} text-slate-500 gap-2 relative`}>
             {previewCheck.canPreview && (
               <div className="absolute top-2 right-2">
-                <Eye size={14} className="text-indigo-500" />
+                <Eye size={14} className={isCodeCategory ? 'text-emerald-400' : 'text-indigo-500'} />
               </div>
             )}
-            <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center text-indigo-600">
+            <div className={`w-12 h-12 ${fileStyle.iconBg} rounded-lg shadow-sm flex items-center justify-center ${fileStyle.iconColor}`}>
               <FileText size={24} />
             </div>
-            <span className="text-xs font-medium text-center truncate w-full px-2">{item.fileName}</span>
-            <span className="text-[10px] text-slate-400 uppercase">{item.fileName?.split('.').pop()}</span>
+            <span className={`text-xs font-medium text-center truncate w-full px-2 ${isCodeCategory ? 'text-slate-200' : 'text-slate-700'}`}>{item.fileName}</span>
+            <span className={`text-[10px] uppercase font-medium ${fileStyle.extColor}`}>{item.fileName?.split('.').pop()}</span>
           </div>
         );
       case ItemType.LINK:
