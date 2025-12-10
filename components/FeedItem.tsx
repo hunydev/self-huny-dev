@@ -437,9 +437,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       )}
 
       {/* Content Body */}
-      <div className={`flex-1 flex flex-col ${(item.title || itemTags.length > 0) ? 'justify-start' : 'justify-end'}`}>
-        {renderThumbnail()}
-      </div>
+      {renderThumbnail()}
 
       {/* Footer / Actions */}
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">

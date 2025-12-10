@@ -136,7 +136,7 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
             </div>
           ) : (
             /* Grid view */
-            <div className={`grid ${gridColsClass} gap-4`}>
+            <div className={`grid ${gridColsClass} gap-4 items-start`}>
               {groupedItems[dateKey].map(item => (
                 <FeedItem 
                   key={item.id} 
