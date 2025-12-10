@@ -135,6 +135,91 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     return ItemType.TEXT;
   };
 
+  // RTF를 HTML로 변환 (간단한 변환 - 색상 정보 추출)
+  const rtfToHtml = (rtf: string): string | null => {
+    try {
+      // RTF 색상 테이블 추출
+      const colorTableMatch = rtf.match(/\\colortbl;(.*?)}/);
+      if (!colorTableMatch) return null;
+      
+      const colors: string[] = ['#000000']; // index 0은 자동 색상
+      const colorDefs = colorTableMatch[1].split(';');
+      for (const def of colorDefs) {
+        const r = def.match(/\\red(\d+)/)?.[1] || '0';
+        const g = def.match(/\\green(\d+)/)?.[1] || '0';
+        const b = def.match(/\\blue(\d+)/)?.[1] || '0';
+        if (r || g || b) {
+          colors.push(`rgb(${r},${g},${b})`);
+        }
+      }
+      
+      // RTF 본문 추출 (색상 테이블 이후)
+      let body = rtf.substring(colorTableMatch.index! + colorTableMatch[0].length);
+      
+      // RTF 제어 코드 처리
+      let html = '';
+      let currentColor = '';
+      let i = 0;
+      
+      while (i < body.length) {
+        if (body[i] === '\\') {
+          // 색상 변경 감지
+          const cfMatch = body.substring(i).match(/^\\cf(\d+)/);
+          if (cfMatch) {
+            const colorIndex = parseInt(cfMatch[1]);
+            if (colors[colorIndex]) {
+              if (currentColor) html += '</span>';
+              currentColor = colors[colorIndex];
+              html += `<span style="color:${currentColor}">`;
+            }
+            i += cfMatch[0].length;
+            continue;
+          }
+          
+          // 줄바꿈
+          if (body.substring(i, i + 4) === '\\par') {
+            html += '<br>';
+            i += 4;
+            continue;
+          }
+          
+          // 기타 제어 코드 스킵
+          const ctrlMatch = body.substring(i).match(/^\\[a-z]+\d*\s?/);
+          if (ctrlMatch) {
+            i += ctrlMatch[0].length;
+            continue;
+          }
+          
+          // 이스케이프 문자
+          if (body[i + 1] === '\\' || body[i + 1] === '{' || body[i + 1] === '}') {
+            html += body[i + 1];
+            i += 2;
+            continue;
+          }
+          
+          i++;
+        } else if (body[i] === '{' || body[i] === '}') {
+          i++;
+        } else if (body[i] === '\r' || body[i] === '\n') {
+          i++;
+        } else {
+          html += body[i];
+          i++;
+        }
+      }
+      
+      if (currentColor) html += '</span>';
+      
+      // 의미있는 HTML이 생성되었는지 확인
+      if (html.includes('<span')) {
+        return `<pre style="font-family: monospace; white-space: pre-wrap;"><code>${html}</code></pre>`;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const handlePaste = useCallback((e: ClipboardEvent) => {
     // 파일 붙여넣기 처리
     if (e.clipboardData?.files.length) {
@@ -145,18 +230,41 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       return;
     }
     
-    // 디버깅: 클립보드에서 사용 가능한 모든 타입 확인
-    console.log('[Paste Debug] Available types:', e.clipboardData?.types);
-    for (const type of e.clipboardData?.types || []) {
-      const data = e.clipboardData?.getData(type);
-      console.log(`[Paste Debug] ${type}:`, data?.substring(0, 300));
-    }
-    
-    // HTML 서식 붙여넣기 처리
+    // 클립보드 데이터 가져오기
     const html = e.clipboardData?.getData('text/html');
+    const rtf = e.clipboardData?.getData('text/rtf');
     const plainText = e.clipboardData?.getData('text/plain');
     
-    if (html && plainText) {
+    // 1. RTF 처리 (VS Code 등 코드 에디터에서 복사한 경우)
+    if (rtf && plainText && !html) {
+      const rtfHtml = rtfToHtml(rtf);
+      if (rtfHtml) {
+        e.preventDefault();
+        
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const newText = text.substring(0, start) + plainText + text.substring(end);
+          setText(newText);
+          setHtmlContent(rtfHtml);
+          setIsExpanded(true);
+          
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = start + plainText.length;
+            textarea.focus();
+          }, 0);
+        } else {
+          setText(prev => prev + plainText);
+          setHtmlContent(rtfHtml);
+          setIsExpanded(true);
+        }
+        return;
+      }
+    }
+    
+    // 2. HTML 처리 (표, 서식 텍스트 등)
+    if (html) {
       // HTML이 서식을 포함하는지 확인
       if (hasRichFormatting(html)) {
         e.preventDefault();
@@ -164,41 +272,34 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
         // HTML sanitize
         const sanitized = sanitizeHtml(html);
         
-        // 현재 커서 위치에 텍스트 삽입
+        // plainText가 없으면 HTML에서 텍스트 추출
+        const textContent = plainText || (() => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          return doc.body.textContent || '';
+        })();
+        
         const textarea = textareaRef.current;
         if (textarea) {
           const start = textarea.selectionStart;
           const end = textarea.selectionEnd;
-          const newText = text.substring(0, start) + plainText + text.substring(end);
+          const newText = text.substring(0, start) + textContent + text.substring(end);
           setText(newText);
-          
-          // HTML 컨텐츠 저장 (전체를 교체하거나 합침)
-          if (start === 0 && end === text.length) {
-            // 전체 선택 상태면 교체
-            setHtmlContent(sanitized);
-          } else if (!text && !htmlContent) {
-            // 비어있으면 새로 설정
-            setHtmlContent(sanitized);
-          } else {
-            // 기존 내용이 있으면 HTML 저장 (plain text로 fallback)
-            setHtmlContent(sanitized);
-          }
-          
+          setHtmlContent(sanitized);
           setIsExpanded(true);
           
-          // 커서 위치 업데이트
           setTimeout(() => {
-            textarea.selectionStart = textarea.selectionEnd = start + plainText.length;
+            textarea.selectionStart = textarea.selectionEnd = start + textContent.length;
             textarea.focus();
           }, 0);
         } else {
-          setText(prev => prev + plainText);
+          setText(prev => prev + textContent);
           setHtmlContent(sanitized);
           setIsExpanded(true);
         }
       }
     }
-  }, [text, htmlContent]);
+  }, [text]);
 
   useEffect(() => {
     const handleWindowPaste = (e: ClipboardEvent) => {

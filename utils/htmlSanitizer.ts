@@ -32,6 +32,22 @@ const ALLOWED_CSS_PROPERTIES = new Set([
   'text-decoration',
   'text-align',
   'font-family',
+  'white-space',
+  // 테이블 관련
+  'border',
+  'border-collapse',
+  'border-color',
+  'border-width',
+  'border-style',
+  'border-top', 'border-right', 'border-bottom', 'border-left',
+  'padding',
+  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  'margin',
+  'width',
+  'height',
+  'min-width',
+  'max-width',
+  'vertical-align',
 ]);
 
 // CSS 속성 값 sanitize
@@ -159,20 +175,27 @@ export const hasRichFormatting = (html: string): boolean => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   
-  // 서식 태그 확인
-  const formattingTags = ['b', 'strong', 'i', 'em', 'u', 's', 'del', 'strike', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'table', 'a'];
+  // 서식 태그 확인 (table 포함)
+  const formattingTags = ['b', 'strong', 'i', 'em', 'u', 's', 'del', 'strike', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'a'];
   for (const tag of formattingTags) {
     if (doc.body.querySelector(tag)) return true;
   }
   
-  // style 속성 확인 (색상 등) - span, div 포함 모든 요소
+  // style 속성 확인 (색상, 테두리 등) - span, div 포함 모든 요소
   const elementsWithStyle = doc.body.querySelectorAll('[style]');
   if (elementsWithStyle.length > 0) {
     for (const el of elementsWithStyle) {
       const style = el.getAttribute('style') || '';
-      // VS Code 등 코드 에디터에서 복사 시 color 스타일이 포함됨
-      if (/color|background|font/i.test(style)) return true;
+      // 색상, 배경, 폰트, 테두리 스타일 확인
+      if (/color|background|font|border|padding/i.test(style)) return true;
     }
+  }
+  
+  // MS Office 관련 확인 (PowerPoint, Word, Excel)
+  if (html.includes('schemas-microsoft-com:office') ||
+      html.includes('ProgId content=') ||
+      html.includes('mso-')) {
+    return true;
   }
   
   // VS Code 특유의 data 속성 확인 (vscode-*)
