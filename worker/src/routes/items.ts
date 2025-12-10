@@ -57,6 +57,7 @@ itemsRoutes.get('/', async (c) => {
         type: row.type,
         // Hide content for encrypted items
         content: isEncrypted ? '' : row.content,
+        htmlContent: isEncrypted ? undefined : row.html_content,
         // Hide fileKey for encrypted items
         fileKey: isEncrypted ? undefined : row.file_key,
         fileName: row.file_name,
@@ -106,6 +107,7 @@ itemsRoutes.get('/:id', async (c) => {
       type: item.type,
       // Hide content for encrypted items
       content: isEncrypted ? '' : item.content,
+      htmlContent: isEncrypted ? undefined : item.html_content,
       // Hide fileKey for encrypted items
       fileKey: isEncrypted ? undefined : item.file_key,
       fileName: item.file_name,
@@ -131,7 +133,7 @@ itemsRoutes.get('/:id', async (c) => {
 itemsRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
-    const { type, content, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode } = body;
+    const { type, content, htmlContent, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode } = body;
 
     // Title is required for encrypted items
     if (isEncrypted && !title) {
@@ -177,12 +179,13 @@ itemsRoutes.post('/', async (c) => {
     }
 
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, 
       type, 
       content || '', 
+      htmlContent || null,
       fileKey || null, 
       fileName || null, 
       fileSize || null, 
@@ -211,6 +214,7 @@ itemsRoutes.post('/', async (c) => {
       id, 
       type, 
       content: isEncrypted ? '' : (content || ''), 
+      htmlContent: isEncrypted ? undefined : (htmlContent || null),
       fileKey: isEncrypted ? undefined : fileKey, 
       fileName, 
       fileSize, 
@@ -237,7 +241,7 @@ itemsRoutes.put('/:id', async (c) => {
 
   try {
     const body = await c.req.json();
-    const { content, title, tags, isFavorite, isEncrypted, encryptionHash, isCode } = body;
+    const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode } = body;
 
     // 암호화 해제 시 기존 비밀번호 검증
     if (isEncrypted === false) {
@@ -269,6 +273,10 @@ itemsRoutes.put('/:id', async (c) => {
     if (content !== undefined) {
       updates.push('content = ?');
       params.push(content || '');
+    }
+    if (htmlContent !== undefined) {
+      updates.push('html_content = ?');
+      params.push(htmlContent || null);
     }
     if (title !== undefined) {
       updates.push('title = ?');

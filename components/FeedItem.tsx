@@ -8,6 +8,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { checkPreviewSupport } from '../services/filePreviewService';
 import { createHighlightedCodeHtml } from '../utils/codeHighlight';
+import { sanitizeHtml } from '../utils/htmlSanitizer';
 
 // YouTube URL 감지
 const isYouTubeUrl = (url: string): boolean => {
@@ -403,6 +404,18 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
               <pre className="text-xs whitespace-pre-wrap line-clamp-6 leading-relaxed font-mono overflow-hidden">
                 <code dangerouslySetInnerHTML={createHighlightedCodeHtml(item.content)} />
               </pre>
+            </div>
+          );
+        }
+        
+        // HTML 서식 콘텐츠가 있는 경우
+        if (item.htmlContent) {
+          return (
+            <div className="p-4 bg-white flex flex-col h-full min-h-[100px]">
+              <div 
+                className="text-sm text-slate-700 line-clamp-6 leading-relaxed prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.htmlContent) }}
+              />
             </div>
           );
         }

@@ -8,6 +8,7 @@ import FilePreviewModal from './FilePreviewModal';
 import { checkPreviewSupport, formatFileSize } from '../services/filePreviewService';
 import EncryptionUnlock from './EncryptionUnlock';
 import { createHighlightedCodeHtml } from '../utils/codeHighlight';
+import { sanitizeHtml } from '../utils/htmlSanitizer';
 
 // 오디오 파일 확장자 체크
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus', 'webm'];
@@ -609,9 +610,16 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
             <div className="space-y-4">
               {/* Text content */}
               <div className="p-6 bg-white rounded-lg border border-slate-100">
-                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
-                  {linkifyText(contentItem.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
-                </p>
+                {contentItem.htmlContent ? (
+                  <div 
+                    className="text-slate-700 leading-relaxed select-text prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentItem.htmlContent) }}
+                  />
+                ) : (
+                  <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
+                    {linkifyText(contentItem.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
+                  </p>
+                )}
               </div>
               
               {/* OG Preview Card */}
@@ -679,9 +687,16 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
         
         return (
           <div className="p-6 bg-white rounded-lg border border-slate-100">
-            <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
-              {linkifyText(contentItem.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
-            </p>
+            {contentItem.htmlContent ? (
+              <div 
+                className="text-slate-700 leading-relaxed select-text prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentItem.htmlContent) }}
+              />
+            ) : (
+              <p className="text-slate-700 whitespace-pre-wrap leading-relaxed select-text">
+                {linkifyText(contentItem.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
+              </p>
+            )}
           </div>
         );
     }

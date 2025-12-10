@@ -3,6 +3,7 @@ import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus,
 import { Item, ItemType, Tag } from '../types';
 import { suggestTitle } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
+import { sanitizeHtml, hasRichFormatting } from '../utils/htmlSanitizer';
 
 interface InputAreaProps {
   onSave: (item: Omit<Item, 'id' | 'createdAt'>) => void;
@@ -20,6 +21,7 @@ export interface InputAreaHandle {
 
 const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus, onAddTag, onDeleteTag, activeTagFilter }, ref) => {
   const [text, setText] = useState('');
+  const [htmlContent, setHtmlContent] = useState<string | undefined>(undefined);
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -134,13 +136,62 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   };
 
   const handlePaste = useCallback((e: ClipboardEvent) => {
+    // 파일 붙여넣기 처리
     if (e.clipboardData?.files.length) {
       const pastedFile = e.clipboardData.files[0];
       setFile(pastedFile);
       setIsExpanded(true);
       e.preventDefault();
+      return;
     }
-  }, []);
+    
+    // HTML 서식 붙여넣기 처리
+    const html = e.clipboardData?.getData('text/html');
+    const plainText = e.clipboardData?.getData('text/plain');
+    
+    if (html && plainText) {
+      // HTML이 서식을 포함하는지 확인
+      if (hasRichFormatting(html)) {
+        e.preventDefault();
+        
+        // HTML sanitize
+        const sanitized = sanitizeHtml(html);
+        
+        // 현재 커서 위치에 텍스트 삽입
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const newText = text.substring(0, start) + plainText + text.substring(end);
+          setText(newText);
+          
+          // HTML 컨텐츠 저장 (전체를 교체하거나 합침)
+          if (start === 0 && end === text.length) {
+            // 전체 선택 상태면 교체
+            setHtmlContent(sanitized);
+          } else if (!text && !htmlContent) {
+            // 비어있으면 새로 설정
+            setHtmlContent(sanitized);
+          } else {
+            // 기존 내용이 있으면 HTML 저장 (plain text로 fallback)
+            setHtmlContent(sanitized);
+          }
+          
+          setIsExpanded(true);
+          
+          // 커서 위치 업데이트
+          setTimeout(() => {
+            textarea.selectionStart = textarea.selectionEnd = start + plainText.length;
+            textarea.focus();
+          }, 0);
+        } else {
+          setText(prev => prev + plainText);
+          setHtmlContent(sanitized);
+          setIsExpanded(true);
+        }
+      }
+    }
+  }, [text, htmlContent]);
 
   useEffect(() => {
     const handleWindowPaste = (e: ClipboardEvent) => {
@@ -193,6 +244,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     const newItem: Omit<Item, 'id' | 'createdAt'> & { encryptionKey?: string } = {
       type,
       content: text,
+      htmlContent: htmlContent,
       tags: selectedTags,
       title: title || undefined,
       isFavorite: false,
@@ -217,6 +269,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     
     // Reset
     setText('');
+    setHtmlContent(undefined);
     setTitle('');
     setFile(null);
     setSelectedTags([]);

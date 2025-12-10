@@ -30,6 +30,7 @@ export interface Item {
   isFavorite: boolean; // Favorite flag
   isEncrypted: boolean; // Encryption flag
   isCode?: boolean; // Code block flag
+  htmlContent?: string; // Rich HTML content with formatting
   createdAt: number;
 }
 

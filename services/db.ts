@@ -6,6 +6,7 @@ interface ApiItem {
   id: string;
   type: string;
   content: string;
+  htmlContent?: string;
   fileKey?: string;
   fileName?: string;
   fileSize?: number;
@@ -40,6 +41,7 @@ const transformItem = (apiItem: ApiItem): Item => ({
   id: apiItem.id,
   type: apiItem.type as ItemType,
   content: apiItem.content,
+  htmlContent: apiItem.htmlContent,
   fileKey: apiItem.fileKey,
   fileName: apiItem.fileName,
   fileSize: apiItem.fileSize,
@@ -192,6 +194,7 @@ export const saveItem = async (
     body: JSON.stringify({
       type: item.type,
       content: item.content,
+      htmlContent: item.htmlContent,
       fileKey: fileKey || item.fileKey,
       fileName: fileName || item.fileName,
       fileSize: fileSize || item.fileSize,
