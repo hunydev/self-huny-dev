@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { getFileUrl, unlockItem, toggleEncryption, updateItemTitle } from '../services/db';
 import { suggestTitle } from '../services/geminiService';
 import { linkifyText } from '../utils/linkify';
@@ -16,6 +16,32 @@ const isAudioFile = (fileName?: string, mimeType?: string): boolean => {
   if (!fileName) return false;
   const ext = fileName.split('.').pop()?.toLowerCase();
   return ext ? AUDIO_EXTENSIONS.includes(ext) : false;
+};
+
+// 이미지/비디오 메타데이터 타입
+interface ImageMetadata {
+  width: number;
+  height: number;
+  aspectRatio: string;
+}
+
+interface VideoMetadata {
+  width: number;
+  height: number;
+  duration: number;
+  durationFormatted: string;
+  aspectRatio: string;
+}
+
+// 시간 포맷팅 헬퍼
+const formatDuration = (seconds: number): string => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
 // YouTube URL에서 비디오 ID 추출
@@ -57,6 +83,11 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   const [unlockedItem, setUnlockedItem] = useState<Item | null>(null);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
+  
+  // 이미지/비디오 메타데이터 상태
+  const [imageMetadata, setImageMetadata] = useState<ImageMetadata | null>(null);
+  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
+  const [showMetadata, setShowMetadata] = useState(false);
   
   // 실제 표시할 아이템 (잠금 해제된 경우 unlockedItem, 아니면 원본)
   const displayItem = item?.isEncrypted && unlockedItem ? unlockedItem : item;
@@ -141,6 +172,10 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       // 제목 편집 상태 리셋
       setIsEditingTitle(false);
       setEditTitle('');
+      // 메타데이터 상태 리셋
+      setImageMetadata(null);
+      setVideoMetadata(null);
+      setShowMetadata(false);
     }
   }, [item?.id, item?.tags]);
 
@@ -232,16 +267,77 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
     switch (contentItem.type) {
       case ItemType.IMAGE:
         return (
-          <div className="flex items-center justify-center bg-black/5 rounded-lg overflow-hidden max-h-[60vh]">
-            {fileUrl ? (
-              <img 
-                src={fileUrl} 
-                alt={contentItem.fileName} 
-                className="max-w-full max-h-[60vh] object-contain"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-64 text-slate-300">
-                <ImageIcon size={48} />
+          <div className="space-y-3">
+            <div className="flex items-center justify-center bg-black/5 rounded-lg overflow-hidden max-h-[60vh]">
+              {fileUrl ? (
+                <img 
+                  src={fileUrl} 
+                  alt={contentItem.fileName} 
+                  className="max-w-full max-h-[60vh] object-contain"
+                  onLoad={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+                    const divisor = gcd(img.naturalWidth, img.naturalHeight);
+                    setImageMetadata({
+                      width: img.naturalWidth,
+                      height: img.naturalHeight,
+                      aspectRatio: `${img.naturalWidth / divisor}:${img.naturalHeight / divisor}`
+                    });
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-64 text-slate-300">
+                  <ImageIcon size={48} />
+                </div>
+              )}
+            </div>
+            {/* 이미지 메타데이터 */}
+            {(imageMetadata || contentItem.fileSize) && (
+              <div className="bg-slate-50 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setShowMetadata(!showMetadata)}
+                  className="w-full px-4 py-2.5 flex items-center justify-between text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Info size={14} />
+                    <span className="font-medium">이미지 정보</span>
+                  </div>
+                  {showMetadata ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {showMetadata && (
+                  <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm border-t border-slate-100 pt-3">
+                    {contentItem.fileName && (
+                      <div className="col-span-2">
+                        <span className="text-slate-400">파일명</span>
+                        <p className="text-slate-700 font-medium truncate">{contentItem.fileName}</p>
+                      </div>
+                    )}
+                    {imageMetadata && (
+                      <>
+                        <div>
+                          <span className="text-slate-400">해상도</span>
+                          <p className="text-slate-700 font-medium">{imageMetadata.width} × {imageMetadata.height}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">비율</span>
+                          <p className="text-slate-700 font-medium">{imageMetadata.aspectRatio}</p>
+                        </div>
+                      </>
+                    )}
+                    {contentItem.fileSize && (
+                      <div>
+                        <span className="text-slate-400">파일 크기</span>
+                        <p className="text-slate-700 font-medium">{formatFileSize(contentItem.fileSize)}</p>
+                      </div>
+                    )}
+                    {contentItem.mimeType && (
+                      <div>
+                        <span className="text-slate-400">파일 형식</span>
+                        <p className="text-slate-700 font-medium">{contentItem.mimeType}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -249,17 +345,84 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       
       case ItemType.VIDEO:
         return (
-          <div className="bg-black rounded-lg overflow-hidden">
-            {fileUrl ? (
-              <video 
-                src={fileUrl} 
-                controls 
-                className="w-full max-h-[60vh]"
-                autoPlay
-              />
-            ) : (
-              <div className="flex items-center justify-center h-64 text-white/50">
-                <Video size={48} />
+          <div className="space-y-3">
+            <div className="bg-black rounded-lg overflow-hidden">
+              {fileUrl ? (
+                <video 
+                  src={fileUrl} 
+                  controls 
+                  className="w-full max-h-[60vh]"
+                  autoPlay
+                  onLoadedMetadata={(e) => {
+                    const video = e.target as HTMLVideoElement;
+                    const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+                    const divisor = gcd(video.videoWidth, video.videoHeight);
+                    setVideoMetadata({
+                      width: video.videoWidth,
+                      height: video.videoHeight,
+                      duration: video.duration,
+                      durationFormatted: formatDuration(video.duration),
+                      aspectRatio: `${video.videoWidth / divisor}:${video.videoHeight / divisor}`
+                    });
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-64 text-white/50">
+                  <Video size={48} />
+                </div>
+              )}
+            </div>
+            {/* 비디오 메타데이터 */}
+            {(videoMetadata || contentItem.fileSize) && (
+              <div className="bg-slate-50 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setShowMetadata(!showMetadata)}
+                  className="w-full px-4 py-2.5 flex items-center justify-between text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Info size={14} />
+                    <span className="font-medium">영상 정보</span>
+                  </div>
+                  {showMetadata ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {showMetadata && (
+                  <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm border-t border-slate-100 pt-3">
+                    {contentItem.fileName && (
+                      <div className="col-span-2">
+                        <span className="text-slate-400">파일명</span>
+                        <p className="text-slate-700 font-medium truncate">{contentItem.fileName}</p>
+                      </div>
+                    )}
+                    {videoMetadata && (
+                      <>
+                        <div>
+                          <span className="text-slate-400">해상도</span>
+                          <p className="text-slate-700 font-medium">{videoMetadata.width} × {videoMetadata.height}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">비율</span>
+                          <p className="text-slate-700 font-medium">{videoMetadata.aspectRatio}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">재생 시간</span>
+                          <p className="text-slate-700 font-medium">{videoMetadata.durationFormatted}</p>
+                        </div>
+                      </>
+                    )}
+                    {contentItem.fileSize && (
+                      <div>
+                        <span className="text-slate-400">파일 크기</span>
+                        <p className="text-slate-700 font-medium">{formatFileSize(contentItem.fileSize)}</p>
+                      </div>
+                    )}
+                    {contentItem.mimeType && (
+                      <div>
+                        <span className="text-slate-400">파일 형식</span>
+                        <p className="text-slate-700 font-medium">{contentItem.mimeType}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
