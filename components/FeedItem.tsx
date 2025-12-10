@@ -437,7 +437,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       )}
 
       {/* Content Body */}
-      <div className={(item.title || itemTags.length > 0) ? '' : ''}>
+      <div className="flex-1">
         {renderThumbnail()}
       </div>
 
