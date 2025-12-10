@@ -437,7 +437,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       )}
 
       {/* Content Body */}
-      <div className="flex-1 flex flex-col justify-end">
+      <div className={`flex-1 flex flex-col ${(item.title || itemTags.length > 0) ? 'justify-start' : 'justify-end'}`}>
         {renderThumbnail()}
       </div>
 
