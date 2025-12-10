@@ -437,10 +437,12 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       )}
 
       {/* Content Body */}
-      {renderThumbnail()}
+      <div className="flex-1 flex flex-col justify-end">
+        {renderThumbnail()}
+      </div>
 
       {/* Footer / Actions */}
-      <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white mt-auto">
+      <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-medium">{formattedDate}</span>
         </div>
