@@ -411,9 +411,15 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
         // HTML 서식 콘텐츠가 있는 경우
         if (item.htmlContent) {
           return (
-            <div className="p-4 bg-white flex flex-col h-full min-h-[100px]">
+            <div className="p-4 bg-white flex flex-col h-full min-h-[100px] max-h-[200px] overflow-hidden">
               <div 
-                className="text-sm text-slate-700 line-clamp-6 leading-relaxed prose prose-sm max-w-none"
+                className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none overflow-hidden"
+                style={{ 
+                  display: '-webkit-box', 
+                  WebkitLineClamp: 6, 
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.htmlContent) }}
               />
             </div>

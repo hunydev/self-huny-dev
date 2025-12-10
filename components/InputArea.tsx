@@ -332,6 +332,30 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
         </div>
       )}
 
+      {/* HTML Rich Text Preview */}
+      {htmlContent && (
+        <div className="mb-3 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-purple-600 flex items-center gap-1">
+              <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+              서식 텍스트 감지됨
+            </span>
+            <button
+              onClick={() => {
+                setHtmlContent(undefined);
+              }}
+              className="text-xs text-purple-500 hover:text-purple-700 px-2 py-0.5 rounded hover:bg-purple-100 transition-colors"
+            >
+              서식 제거
+            </button>
+          </div>
+          <div 
+            className="text-sm text-slate-700 bg-white rounded p-2 border border-purple-100 max-h-[150px] overflow-y-auto prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
+          />
+        </div>
+      )}
+
       {/* Main Input */}
       <div className="flex gap-2">
         <textarea
@@ -511,6 +535,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 onClick={() => {
                   setIsExpanded(false);
                   setText('');
+                  setHtmlContent(undefined);
                   setFile(null);
                 }}
                 className="px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 rounded-lg"
