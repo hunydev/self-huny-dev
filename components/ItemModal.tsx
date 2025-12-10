@@ -1031,19 +1031,26 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
           
           {/* 이미지 컨테이너 */}
           <div 
-            className="flex items-center justify-center min-h-full p-4"
+            className="w-full h-full overflow-auto flex items-start justify-center p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <img 
               src={fileUrl} 
               alt={contentItem.fileName}
-              className="select-none transition-transform duration-200"
+              className="select-none"
               style={{
-                transform: `scale(${imageZoom})`,
-                transformOrigin: 'center center',
                 ...(imageFitMode === 'contain' 
-                  ? { maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain' as const }
-                  : { width: '95vw', height: 'auto' }
+                  ? { 
+                      maxWidth: imageZoom === 1 ? '95vw' : 'none', 
+                      maxHeight: imageZoom === 1 ? '95vh' : 'none',
+                      width: imageZoom !== 1 ? `${95 * imageZoom}vw` : 'auto',
+                      height: 'auto',
+                      objectFit: 'contain' as const 
+                    }
+                  : { 
+                      width: `${95 * imageZoom}vw`, 
+                      height: 'auto' 
+                    }
                 )
               }}
               draggable={false}
