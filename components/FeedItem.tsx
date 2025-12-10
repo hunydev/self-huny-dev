@@ -324,7 +324,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
                 <Code size={14} />
                 <span className="text-[10px] font-medium uppercase tracking-wider">Code</span>
               </div>
-              <pre className="text-xs whitespace-pre-wrap line-clamp-6 leading-relaxed font-mono overflow-x-auto">
+              <pre className="text-xs whitespace-pre-wrap line-clamp-6 leading-relaxed font-mono overflow-hidden">
                 <code dangerouslySetInnerHTML={createHighlightedCodeHtml(item.content)} />
               </pre>
             </div>
@@ -437,7 +437,7 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       )}
 
       {/* Content Body */}
-      <div className={`${(item.title || itemTags.length > 0) ? '' : 'pt-0'} flex-1`}>
+      <div className={(item.title || itemTags.length > 0) ? '' : ''}>
         {renderThumbnail()}
       </div>
 
