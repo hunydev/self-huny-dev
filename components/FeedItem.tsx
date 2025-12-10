@@ -366,6 +366,9 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-medium">{formattedDate}</span>
+          {item.isEncrypted && (
+            <LockKeyhole size={12} className="text-slate-400" />
+          )}
         </div>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
