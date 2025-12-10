@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2, ZoomIn, ZoomOut, MoveHorizontal, RotateCcw } from 'lucide-react';
 import { getFileUrl, unlockItem, toggleEncryption, updateItemTitle } from '../services/db';
 import { suggestTitle } from '../services/geminiService';
 import { linkifyText } from '../utils/linkify';
@@ -92,6 +92,8 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   
   // 이미지 전체화면 상태
   const [isImageFullscreen, setIsImageFullscreen] = useState(false);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [imageFitMode, setImageFitMode] = useState<'contain' | 'width'>('contain'); // contain: 화면에 맞춤, width: 가로에 맞춤
   
   // 실제 표시할 아이템 (잠금 해제된 경우 unlockedItem, 아니면 원본)
   const displayItem = item?.isEncrypted && unlockedItem ? unlockedItem : item;
@@ -943,14 +945,65 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       {/* Image Fullscreen Overlay */}
       {isImageFullscreen && fileUrl && contentItem.type === ItemType.IMAGE && (
         <div 
-          className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
+          className="fixed inset-0 z-[60] bg-black flex items-center justify-center overflow-auto"
           onClick={(e) => {
             e.stopPropagation();
             setIsImageFullscreen(false);
+            setImageZoom(1);
+            setImageFitMode('contain');
           }}
         >
           {/* 컨트롤 버튼들 */}
-          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+          <div className="fixed top-4 right-4 flex items-center gap-2 z-10">
+            {/* 보기 모드 토글 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageFitMode(prev => prev === 'contain' ? 'width' : 'contain');
+                setImageZoom(1);
+              }}
+              className={`p-3 ${imageFitMode === 'width' ? 'bg-white/30' : 'bg-white/10'} hover:bg-white/20 text-white rounded-lg transition-colors`}
+              title={imageFitMode === 'contain' ? '가로에 맞춤' : '화면에 맞춤'}
+            >
+              <MoveHorizontal size={20} />
+            </button>
+            {/* 축소 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageZoom(prev => Math.max(0.5, prev - 0.25));
+              }}
+              className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors disabled:opacity-30"
+              title="축소"
+              disabled={imageZoom <= 0.5}
+            >
+              <ZoomOut size={20} />
+            </button>
+            {/* 확대 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageZoom(prev => Math.min(3, prev + 0.25));
+              }}
+              className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors disabled:opacity-30"
+              title="확대"
+              disabled={imageZoom >= 3}
+            >
+              <ZoomIn size={20} />
+            </button>
+            {/* 초기화 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setImageZoom(1);
+                setImageFitMode('contain');
+              }}
+              className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              title="초기화"
+            >
+              <RotateCcw size={20} />
+            </button>
+            {/* 다운로드 */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -961,10 +1014,13 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
             >
               <Download size={20} />
             </button>
+            {/* 닫기 */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setIsImageFullscreen(false);
+                setImageZoom(1);
+                setImageFitMode('contain');
               }}
               className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
               title="닫기"
@@ -973,22 +1029,40 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
             </button>
           </div>
           
-          {/* 이미지 */}
-          <img 
-            src={fileUrl} 
-            alt={contentItem.fileName}
-            className="max-w-[95vw] max-h-[95vh] object-contain select-none"
+          {/* 이미지 컨테이너 */}
+          <div 
+            className="flex items-center justify-center min-h-full p-4"
             onClick={(e) => e.stopPropagation()}
-            draggable={false}
-          />
+          >
+            <img 
+              src={fileUrl} 
+              alt={contentItem.fileName}
+              className="select-none transition-transform duration-200"
+              style={{
+                transform: `scale(${imageZoom})`,
+                transformOrigin: 'center center',
+                ...(imageFitMode === 'contain' 
+                  ? { maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain' as const }
+                  : { width: '95vw', height: 'auto' }
+                )
+              }}
+              draggable={false}
+            />
+          </div>
           
-          {/* 파일 정보 */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 rounded-lg text-white text-sm">
-            {contentItem.fileName}
+          {/* 파일 정보 및 상태 */}
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 rounded-lg text-white text-sm flex items-center gap-3">
+            <span>{contentItem.fileName}</span>
             {imageMetadata && (
-              <span className="ml-2 text-white/70">
-                ({imageMetadata.width} × {imageMetadata.height})
+              <span className="text-white/70">
+                {imageMetadata.width} × {imageMetadata.height}
               </span>
+            )}
+            <span className="text-white/70">
+              {Math.round(imageZoom * 100)}%
+            </span>
+            {imageFitMode === 'width' && (
+              <span className="text-blue-400 text-xs">가로 맞춤</span>
             )}
           </div>
         </div>
