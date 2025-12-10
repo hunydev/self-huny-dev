@@ -165,11 +165,38 @@ export const hasRichFormatting = (html: string): boolean => {
     if (doc.body.querySelector(tag)) return true;
   }
   
-  // style 속성 확인 (색상 등)
+  // style 속성 확인 (색상 등) - span, div 포함 모든 요소
   const elementsWithStyle = doc.body.querySelectorAll('[style]');
-  for (const el of elementsWithStyle) {
-    const style = el.getAttribute('style') || '';
-    if (/color|background|font/i.test(style)) return true;
+  if (elementsWithStyle.length > 0) {
+    for (const el of elementsWithStyle) {
+      const style = el.getAttribute('style') || '';
+      // VS Code 등 코드 에디터에서 복사 시 color 스타일이 포함됨
+      if (/color|background|font/i.test(style)) return true;
+    }
+  }
+  
+  // VS Code 특유의 data 속성 확인 (vscode-*)
+  if (doc.body.querySelector('[class*="vscode"]') || 
+      doc.body.querySelector('[data-vscode]') ||
+      html.includes('vscode-')) {
+    return true;
+  }
+  
+  // Monaco Editor (VS Code의 에디터 엔진) 클래스 확인
+  if (doc.body.querySelector('[class*="monaco"]') ||
+      doc.body.querySelector('[class*="mtk"]')) {
+    return true;
+  }
+  
+  // 여러 개의 span이 색상 스타일을 가진 경우 (코드 하이라이팅 패턴)
+  const spans = doc.body.querySelectorAll('span');
+  let coloredSpanCount = 0;
+  for (const span of spans) {
+    const style = span.getAttribute('style') || '';
+    if (/color\s*:/i.test(style)) {
+      coloredSpanCount++;
+      if (coloredSpanCount >= 2) return true; // 2개 이상의 컬러 span이 있으면 서식으로 판단
+    }
   }
   
   return false;

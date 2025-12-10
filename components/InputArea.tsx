@@ -149,6 +149,10 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     const html = e.clipboardData?.getData('text/html');
     const plainText = e.clipboardData?.getData('text/plain');
     
+    // 디버깅: 클립보드 내용 확인
+    console.log('[Paste Debug] HTML:', html?.substring(0, 500));
+    console.log('[Paste Debug] Has rich formatting:', html ? hasRichFormatting(html) : false);
+    
     if (html && plainText) {
       // HTML이 서식을 포함하는지 확인
       if (hasRichFormatting(html)) {
