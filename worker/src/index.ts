@@ -13,7 +13,7 @@ export interface Env {
   R2_BUCKET: R2Bucket;
   ENVIRONMENT: string;
   ASSETS: Fetcher;
-  GEMINI_API_KEY_FREE: string;
+  GEMINI_API_KEY_FREE: SecretsStoreSecret;
 }
 
 const app = new Hono<{ Bindings: Env }>();
