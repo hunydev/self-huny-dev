@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 
 interface Env {
-  GEMINI_API_KEY_FREE: SecretsStoreSecret;
+  GEMINI_API_KEY: SecretsStoreSecret;
 }
 
 export const geminiRoutes = new Hono<{ Bindings: Env }>();
@@ -16,7 +16,7 @@ geminiRoutes.post('/suggest-title', async (c) => {
     }
 
     // Secrets Store에서 API 키 가져오기
-    const apiKey = await c.env.GEMINI_API_KEY_FREE.get();
+    const apiKey = await c.env.GEMINI_API_KEY.get();
     if (!apiKey) {
       return c.json({ error: 'Gemini API key not configured' }, 500);
     }

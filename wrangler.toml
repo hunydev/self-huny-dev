@@ -9,7 +9,7 @@ routes = [
 
 # Secrets Store 바인딩
 secrets_store_secrets = [
-  { binding = "GEMINI_API_KEY_FREE", store_id = "63beb6becdea48f499776315227b1e2b", secret_name = "GEMINI_API_KEY_FREE" }
+  { binding = "GEMINI_API_KEY", store_id = "63beb6becdea48f499776315227b1e2b", secret_name = "GEMINI_API_KEY" }
 ]
 
 # Static Assets (최신 방식 - wrangler versions upload 지원)
