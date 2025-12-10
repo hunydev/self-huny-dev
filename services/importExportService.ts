@@ -106,6 +106,7 @@ export const exportData = async (onProgress?: ExportProgressCallback): Promise<B
   zip.folder('videos');
   zip.folder('files');
 
+  let fileDownloadCount = 0;
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const exportItem: ExportItem = {
@@ -129,9 +130,10 @@ export const exportData = async (onProgress?: ExportProgressCallback): Promise<B
 
     // Download and add file if exists
     if (item.fileKey) {
+      fileDownloadCount++;
       onProgress?.({
         phase: 'downloading-files',
-        current: i + 1,
+        current: fileDownloadCount,
         total: itemsWithFiles.length,
         message: `파일 다운로드 중: ${item.fileName || item.fileKey}`,
       });
