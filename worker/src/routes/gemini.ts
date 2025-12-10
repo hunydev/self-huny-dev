@@ -95,3 +95,133 @@ ${truncatedContent}
     return c.json({ error: 'Internal server error' }, 500);
   }
 });
+
+// Gemini API endpoint for parsing items from unstructured text
+geminiRoutes.post('/parse-items', async (c) => {
+  try {
+    const { content } = await c.req.json();
+    
+    if (!content || typeof content !== 'string') {
+      return c.json({ error: 'Content is required' }, 400);
+    }
+
+    // Secrets Store에서 API 키 가져오기
+    const apiKey = await c.env.GEMINI_API_KEY.get();
+    if (!apiKey) {
+      return c.json({ error: 'Gemini API key not configured' }, 500);
+    }
+
+    // Truncate content if too long (keep first 10000 chars)
+    const truncatedContent = content.length > 10000 
+      ? content.substring(0, 10000) + '...' 
+      : content;
+
+    const prompt = `당신은 텍스트에서 개별 아이템을 추출하는 전문가입니다. 아래 입력에서 저장할 만한 개별 아이템들을 추출해주세요.
+
+규칙:
+1. 각 아이템은 독립적인 정보 단위입니다 (링크, 메모, 아이디어, 할일, 참고자료 등)
+2. 아이템 타입: "text" (일반 텍스트/메모), "link" (URL이 포함된 경우)
+3. 제목은 15자 이내로 핵심을 담아 생성
+4. 내용은 원본을 최대한 보존
+5. URL이 있으면 type을 "link"로 설정하고 content에 URL을 넣으세요
+
+응답은 반드시 아래 JSON 형식으로만 출력하세요 (설명이나 마크다운 없이):
+{
+  "items": [
+    {
+      "type": "text" 또는 "link",
+      "title": "아이템 제목",
+      "content": "아이템 내용"
+    }
+  ]
+}
+
+입력:
+${truncatedContent}
+
+JSON:`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 4096,
+            topP: 0.9,
+          }
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Gemini] API error:', response.status, errorText);
+      return c.json({ error: 'Failed to parse items' }, 500);
+    }
+
+    const data = await response.json() as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            text?: string;
+          }>;
+        };
+      }>;
+    };
+
+    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    
+    if (!generatedText) {
+      return c.json({ error: 'No response generated' }, 500);
+    }
+
+    // Parse JSON from response (handle potential markdown code blocks)
+    let jsonText = generatedText;
+    
+    // Remove markdown code blocks if present
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.slice(7);
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.slice(3);
+    }
+    if (jsonText.endsWith('```')) {
+      jsonText = jsonText.slice(0, -3);
+    }
+    jsonText = jsonText.trim();
+
+    try {
+      const parsed = JSON.parse(jsonText) as { items: Array<{ type: string; title: string; content: string }> };
+      
+      if (!parsed.items || !Array.isArray(parsed.items)) {
+        return c.json({ error: 'Invalid response format' }, 500);
+      }
+
+      // Validate and clean items
+      const items = parsed.items
+        .filter(item => item.content && item.content.trim())
+        .map(item => ({
+          type: item.type === 'link' ? 'link' : 'text',
+          title: (item.title || '').trim().slice(0, 100),
+          content: item.content.trim(),
+        }));
+
+      return c.json({ items });
+    } catch (parseError) {
+      console.error('[Gemini] JSON parse error:', parseError, 'Raw text:', jsonText);
+      return c.json({ error: 'Failed to parse AI response' }, 500);
+    }
+  } catch (error) {
+    console.error('[Gemini] Error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
