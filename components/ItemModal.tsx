@@ -944,7 +944,10 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       {isImageFullscreen && fileUrl && contentItem.type === ItemType.IMAGE && (
         <div 
           className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
-          onClick={() => setIsImageFullscreen(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsImageFullscreen(false);
+          }}
         >
           {/* 컨트롤 버튼들 */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
@@ -959,7 +962,10 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
               <Download size={20} />
             </button>
             <button
-              onClick={() => setIsImageFullscreen(false)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsImageFullscreen(false);
+              }}
               className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
               title="닫기"
             >
