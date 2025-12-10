@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
-import { suggestMetadata } from '../services/geminiService';
+import { suggestTitle } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
 
 interface InputAreaProps {
@@ -24,13 +24,13 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [file, setFile] = useState<File | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [autoMatchedTags, setAutoMatchedTags] = useState<string[]>([]); // Track which tags were auto-matched
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState('');
   const [isCode, setIsCode] = useState(false);
+  const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevActiveTagFilterRef = useRef<string | null | undefined>(undefined);
 
@@ -161,22 +161,16 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!text && !file) return;
-    setIsAnalyzing(true);
+  const handleSuggestTitle = async () => {
+    if (!text) return;
+    setIsSuggestingTitle(true);
     try {
-      const type = detectType(text, file);
-      // We only analyze text/links for now to avoid large uploads
-      if (type === ItemType.TEXT || type === ItemType.LINK) {
-        const suggestion = await suggestMetadata(text, type);
-        if (suggestion.title) setTitle(suggestion.title);
-        // Here we could map suggested string tags to existing Tag IDs, 
-        // but for simplicity, we'll just log or alert. 
-        // In a real app, we'd create new tags or match by name.
-        // For this demo, let's just use the title.
-      }
+      const suggested = await suggestTitle(text);
+      if (suggested) setTitle(suggested);
+    } catch (error) {
+      console.error('Failed to suggest title:', error);
     } finally {
-      setIsAnalyzing(false);
+      setIsSuggestingTitle(false);
     }
   };
 
@@ -302,14 +296,24 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       {/* Expanded Controls */}
       {isExpanded && (
         <div className="space-y-3 mt-2 animate-in fade-in slide-in-from-top-2">
-          {/* Title Input (Explicit) */}
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title (Optional)"
-            className="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
+          {/* Title Input with AI Suggest Button */}
+          <div className="relative">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title (Optional)"
+              className="w-full text-sm px-3 py-2 pr-10 bg-slate-50 border border-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <button
+              onClick={handleSuggestTitle}
+              disabled={!text || isSuggestingTitle}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400"
+              title="AI로 제목 추천받기"
+            >
+              {isSuggestingTitle ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+            </button>
+          </div>
 
           {/* Tag Selection */}
           <div className="flex flex-wrap gap-2 relative">
@@ -447,14 +451,6 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 }} />
                 <Paperclip size={18} />
               </label>
-              <button 
-                onClick={handleAnalyze}
-                disabled={isAnalyzing || (!text && !file)}
-                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors disabled:opacity-50"
-                title="AI Magic Suggest"
-              >
-                 {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}
-              </button>
             </div>
 
             <div className="flex items-center gap-2">

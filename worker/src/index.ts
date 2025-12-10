@@ -5,6 +5,7 @@ import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/upload';
 import { shareRoutes } from './routes/share';
 import { ogRoutes, parseOgMetadata } from './routes/og';
+import { geminiRoutes } from './routes/gemini';
 import { uploadFileToR2 } from './utils/uploadFile';
 
 export interface Env {
@@ -12,6 +13,7 @@ export interface Env {
   R2_BUCKET: R2Bucket;
   ENVIRONMENT: string;
   ASSETS: Fetcher;
+  GEMINI_API_KEY_FREE: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -29,6 +31,7 @@ app.route('/api/tags', tagsRoutes);
 app.route('/api/upload', uploadRoutes);
 app.route('/api/share', shareRoutes);
 app.route('/api/og', ogRoutes);
+app.route('/api/gemini', geminiRoutes);
 
 // PWA Share Target - handles POST from share intent
 app.post('/share-target', async (c) => {
