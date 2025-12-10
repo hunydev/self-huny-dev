@@ -7,6 +7,7 @@ import { linkifyText } from '../utils/linkify';
 import { useToast } from '../contexts/ToastContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { checkPreviewSupport } from '../services/filePreviewService';
+import { createHighlightedCodeHtml } from '../utils/codeHighlight';
 
 // YouTube URL 감지
 const isYouTubeUrl = (url: string): boolean => {
@@ -323,8 +324,8 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
                 <Code size={14} />
                 <span className="text-[10px] font-medium uppercase tracking-wider">Code</span>
               </div>
-              <pre className="text-xs text-emerald-400 whitespace-pre-wrap line-clamp-6 leading-relaxed font-mono overflow-x-auto">
-                <code>{item.content}</code>
+              <pre className="text-xs whitespace-pre-wrap line-clamp-6 leading-relaxed font-mono overflow-x-auto">
+                <code dangerouslySetInnerHTML={createHighlightedCodeHtml(item.content)} />
               </pre>
             </div>
           );

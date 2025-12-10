@@ -6,6 +6,7 @@ import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
 import { checkPreviewSupport, formatFileSize } from '../services/filePreviewService';
 import EncryptionUnlock from './EncryptionUnlock';
+import { createHighlightedCodeHtml } from '../utils/codeHighlight';
 
 // 오디오 파일 확장자 체크
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus', 'webm'];
@@ -450,8 +451,8 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                   {copied ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <pre className="p-4 text-sm text-emerald-400 whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto select-text max-h-[60vh] overflow-y-auto">
-                <code>{contentItem.content}</code>
+              <pre className="p-4 text-sm whitespace-pre-wrap leading-relaxed font-mono overflow-x-auto select-text max-h-[60vh] overflow-y-auto">
+                <code dangerouslySetInnerHTML={createHighlightedCodeHtml(contentItem.content)} />
               </pre>
             </div>
           );
