@@ -25,6 +25,11 @@ const EncryptionModal: React.FC<EncryptionModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // currentTitle이 변경될 때 title 상태 업데이트
+  React.useEffect(() => {
+    setTitle(currentTitle || '');
+  }, [currentTitle]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);

@@ -235,6 +235,20 @@ itemsRoutes.put('/:id', async (c) => {
     const body = await c.req.json();
     const { content, title, tags, isFavorite, isEncrypted, encryptionHash } = body;
 
+    // 암호화 해제 시 기존 비밀번호 검증
+    if (isEncrypted === false) {
+      const existingItem = await c.env.DB.prepare('SELECT is_encrypted, encryption_hash FROM items WHERE id = ?').bind(id).first();
+      if (existingItem?.is_encrypted === 1) {
+        // 암호화된 아이템을 해제하려면 기존 비밀번호가 필요
+        if (!encryptionHash) {
+          return c.json({ error: '암호화 해제에는 기존 비밀번호가 필요합니다.' }, 400);
+        }
+        if (existingItem.encryption_hash !== encryptionHash) {
+          return c.json({ error: '비밀번호가 올바르지 않습니다.' }, 401);
+        }
+      }
+    }
+
     // Title is required for encrypted items
     if (isEncrypted && !title) {
       // Check if item already has a title
@@ -264,9 +278,10 @@ itemsRoutes.put('/:id', async (c) => {
       updates.push('is_encrypted = ?');
       params.push(isEncrypted ? 1 : 0);
     }
-    if (encryptionHash !== undefined) {
+    if (isEncrypted !== undefined) {
+      // 암호화 해제 시 해시도 null로 설정
       updates.push('encryption_hash = ?');
-      params.push(encryptionHash || null);
+      params.push(isEncrypted ? encryptionHash : null);
     }
     
     if (updates.length > 0) {

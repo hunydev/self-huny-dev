@@ -58,11 +58,11 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       setSelectedTags(item.tags);
       setHasChanges(false);
       setShowFilePreview(false);
-      // 암호화 상태 리셋
+      // 암호화 상태 리셋 (아이템 변경 시 또는 암호화 상태 변경 시)
       setUnlockedItem(null);
       setUnlockError(null);
     }
-  }, [item?.id, item?.tags]);
+  }, [item?.id, item?.tags, item?.isEncrypted]);
 
   // Get file URL (암호화 해제된 아이템 기준)
   const fileUrl = useMemo(() => {

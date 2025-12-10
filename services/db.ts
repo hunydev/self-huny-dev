@@ -363,7 +363,7 @@ export const toggleEncryption = async (
   key: string,
   title?: string
 ): Promise<void> => {
-  const keyHash = isEncrypted ? await hashEncryptionKey(key) : null;
+  const keyHash = await hashEncryptionKey(key);
   
   const body: Record<string, unknown> = {
     isEncrypted,
