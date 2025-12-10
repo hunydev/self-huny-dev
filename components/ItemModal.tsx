@@ -678,7 +678,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                   {copied ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <pre className="p-4 text-sm whitespace-pre-wrap leading-relaxed font-mono overflow-hidden select-text max-h-[60vh] overflow-y-auto">
+              <pre className="p-4 text-sm whitespace-pre-wrap leading-relaxed font-mono select-text">
                 <code dangerouslySetInnerHTML={createHighlightedCodeHtml(contentItem.content)} />
               </pre>
             </div>
