@@ -2,12 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ExportModal from './ExportModal';
 import ImportModal from './ImportModal';
+import ProfileModal from './ProfileModal';
 
 const UserMenu: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -102,6 +104,20 @@ const UserMenu: React.FC = () => {
 
           {/* Menu Items */}
           <div className="p-2">
+            {/* Profile Button */}
+            <button
+              onClick={() => {
+                setShowProfile(true);
+                setIsOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              내 정보
+            </button>
+
             {/* Export Button */}
             <button
               onClick={() => {
@@ -143,6 +159,16 @@ const UserMenu: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Profile Modal */}
+      <ProfileModal
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+        onExport={() => {
+          setShowProfile(false);
+          setShowExport(true);
+        }}
+      />
 
       {/* Export Modal */}
       <ExportModal

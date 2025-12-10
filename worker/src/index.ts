@@ -33,6 +33,35 @@ app.route('/api/share', shareRoutes);
 app.route('/api/og', ogRoutes);
 app.route('/api/gemini', geminiRoutes);
 
+// Delete user account (deletes all data)
+app.delete('/api/user', async (c) => {
+  try {
+    // Get all file keys to delete from R2
+    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL').all();
+    
+    // Delete all files from R2
+    for (const item of items || []) {
+      if (item.file_key) {
+        try {
+          await c.env.R2_BUCKET.delete(item.file_key as string);
+        } catch (err) {
+          console.error('Failed to delete file from R2:', item.file_key, err);
+        }
+      }
+    }
+
+    // Delete all data
+    await c.env.DB.prepare('DELETE FROM item_tags').run();
+    await c.env.DB.prepare('DELETE FROM items').run();
+    await c.env.DB.prepare('DELETE FROM tags').run();
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user account:', error);
+    return c.json({ error: 'Failed to delete user account' }, 500);
+  }
+});
+
 // PWA Share Target - handles POST from share intent
 app.post('/share-target', async (c) => {
   console.log('[Share Target] Received request');

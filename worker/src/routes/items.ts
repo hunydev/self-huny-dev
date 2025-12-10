@@ -4,6 +4,61 @@ import { parseOgMetadata } from './og';
 
 export const itemsRoutes = new Hono<{ Bindings: Env }>();
 
+// Get user stats - MUST be before /:id route
+itemsRoutes.get('/stats', async (c) => {
+  try {
+    // Get total items count
+    const itemCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM items').first();
+    const totalItems = (itemCountResult?.count as number) || 0;
+
+    // Get total tags count
+    const tagCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tags').first();
+    const totalTags = (tagCountResult?.count as number) || 0;
+
+    // Get total file size
+    const fileSizeResult = await c.env.DB.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM items WHERE file_size IS NOT NULL').first();
+    const totalFileSize = (fileSizeResult?.total as number) || 0;
+
+    return c.json({
+      totalItems,
+      totalTags,
+      totalFileSize,
+    });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    return c.json({ error: 'Failed to fetch stats' }, 500);
+  }
+});
+
+// Delete all data (items, tags, files) - MUST be before /:id route
+itemsRoutes.delete('/delete-all', async (c) => {
+  try {
+    // Get all file keys to delete from R2
+    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL').all();
+    
+    // Delete all files from R2
+    for (const item of items || []) {
+      if (item.file_key) {
+        try {
+          await c.env.R2_BUCKET.delete(item.file_key as string);
+        } catch (err) {
+          console.error('Failed to delete file from R2:', item.file_key, err);
+        }
+      }
+    }
+
+    // Delete all item_tags, items, and tags
+    await c.env.DB.prepare('DELETE FROM item_tags').run();
+    await c.env.DB.prepare('DELETE FROM items').run();
+    await c.env.DB.prepare('DELETE FROM tags').run();
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting all data:', error);
+    return c.json({ error: 'Failed to delete all data' }, 500);
+  }
+});
+
 // Get all items with their tags
 itemsRoutes.get('/', async (c) => {
   const type = c.req.query('type');
