@@ -1127,8 +1127,8 @@ const AuthenticatedContent: React.FC = () => {
         </div>
 
         <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto scroll-smooth ${activeFilter === 'scheduled' ? 'flex flex-col' : ''}`}>
-          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash and scheduled view) */}
-          {activeFilter !== 'trash' && activeFilter !== 'scheduled' && (
+          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash view) */}
+          {activeFilter !== 'trash' && (
             <div className="sticky top-0 z-20 px-4 lg:px-8 pt-4 lg:pt-6 pb-4">
               <div className="max-w-3xl mx-auto w-full">
                 <div className="shadow-lg shadow-slate-900/10 rounded-xl">

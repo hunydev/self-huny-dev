@@ -148,13 +148,32 @@
           }
         });
         
-        // Refresh page when new SW takes over
+        // Refresh page when new SW takes over (but not on first install)
         let refreshing = false;
+        const hadController = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // Don't reload on first SW install (when there was no controller before)
+          if (!hadController) {
+            console.log('First SW install, skipping reload');
+            return;
+          }
+          // Prevent reload loop using sessionStorage
+          const reloadKey = 'sw-reload-' + Date.now().toString().slice(0, -4); // ~10 second window
+          if (sessionStorage.getItem('sw-reloading')) {
+            console.log('Already reloading, skipping');
+            return;
+          }
           if (!refreshing) {
             refreshing = true;
+            sessionStorage.setItem('sw-reloading', 'true');
+            // Clear the flag after a short delay
+            setTimeout(() => sessionStorage.removeItem('sw-reloading'), 3000);
             window.location.reload();
           }
+        });
+        // Clear reload flag on successful page load
+        window.addEventListener('load', () => {
+          sessionStorage.removeItem('sw-reloading');
         });
       }
     </script>

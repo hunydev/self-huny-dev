@@ -1,7 +1,7 @@
 // Service Worker for Self PWA
-// Version 12 - Added version reporting to UI
-const SW_VERSION = 12;
-const CACHE_NAME = 'self-v12';
+// Version 13 - Fixed PWA reload loop bug
+const SW_VERSION = 13;
+const CACHE_NAME = 'self-v13';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
