@@ -795,14 +795,23 @@ const AuthenticatedContent: React.FC = () => {
     }
   };
 
-  // Get the next upcoming reminder (future only)
+  // Trigger for recalculating upcomingReminder periodically
+  const [reminderTick, setReminderTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setReminderTick(t => t + 1), 60000); // Every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get the next upcoming reminder (future only, at least 1 minute away)
   const upcomingReminder = useMemo(() => {
     const now = Date.now();
-    const futureItems = scheduledItems.filter(item => item.reminderAt && item.reminderAt > now);
+    // Only show reminders that are at least 1 minute in the future
+    const futureItems = scheduledItems.filter(item => item.reminderAt && item.reminderAt > now + 30000);
     if (futureItems.length === 0) return null;
     
-    // Already sorted by reminderAt in ascending order from API
-    const nextItem = futureItems[0];
+    // Sort by reminderAt to get the nearest one
+    const sortedItems = [...futureItems].sort((a, b) => (a.reminderAt || 0) - (b.reminderAt || 0));
+    const nextItem = sortedItems[0];
     if (!nextItem.reminderAt) return null;
     
     const reminderDate = new Date(nextItem.reminderAt);
@@ -812,7 +821,9 @@ const AuthenticatedContent: React.FC = () => {
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     
     let timeText: string;
-    if (diffMinutes < 60) {
+    if (diffMinutes < 1) {
+      timeText = '곧';
+    } else if (diffMinutes < 60) {
       timeText = `${diffMinutes}분 후`;
     } else if (diffHours < 24) {
       timeText = `${diffHours}시간 후`;
@@ -827,7 +838,7 @@ const AuthenticatedContent: React.FC = () => {
       timeText,
       isUrgent: diffHours < 24
     };
-  }, [scheduledItems]);
+  }, [scheduledItems, reminderTick]);
 
   // Filtered items based on type, tag, and search
   const filteredItems = useMemo(() => {

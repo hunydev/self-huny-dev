@@ -229,11 +229,15 @@ const ScheduledView: React.FC<ScheduledViewProps> = ({ items, tags: _tags, onIte
                   relative p-1.5 rounded-lg text-sm transition-all min-h-[70px] lg:min-h-[80px] flex flex-col
                   ${!isCurrentMonth ? 'text-slate-300 bg-slate-50/50' : dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : 'text-slate-700'}
                   ${isToday(day) ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}
-                  ${isSelected ? 'bg-indigo-100' : hasItems ? 'bg-blue-50 hover:bg-blue-100 cursor-pointer' : 'bg-white'}
+                  ${isSelected 
+                    ? 'bg-indigo-600 text-white shadow-inner' 
+                    : hasItems 
+                      ? 'bg-blue-50 hover:bg-blue-100 cursor-pointer' 
+                      : 'bg-white'}
                   ${hasItems ? 'cursor-pointer' : 'cursor-default'}
                 `}
               >
-                <span className={`text-xs font-medium ${isToday(day) ? 'font-bold' : ''}`}>
+                <span className={`text-xs font-medium ${isToday(day) ? 'font-bold' : ''} ${isSelected ? 'text-white' : ''}`}>
                   {format(day, 'd')}
                 </span>
                 {/* 아이템 썸네일 그리드 */}
