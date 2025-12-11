@@ -913,9 +913,9 @@ const AuthenticatedContent: React.FC = () => {
       return scheduledItems;
     }
 
-    // For expiring view, return expiring items
+    // For expiring view, return expiring items sorted by expiration date (soonest first)
     if (activeFilter === 'expiring') {
-      return expiringItems;
+      return [...expiringItems].sort((a, b) => (a.expiresAt || 0) - (b.expiresAt || 0));
     }
 
     let result = items;
