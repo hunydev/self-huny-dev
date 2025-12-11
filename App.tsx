@@ -29,8 +29,9 @@ const AuthenticatedContent: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [trashItems, setTrashItems] = useState<(Item & { deletedAt?: number })[]>([]);
   const [scheduledItems, setScheduledItems] = useState<Item[]>([]);
+  const [expiringItems, setExpiringItems] = useState<Item[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [activeFilter, setActiveFilter] = useState<ItemType | 'all' | 'favorites' | 'encrypted' | 'trash' | 'scheduled'>('all');
+  const [activeFilter, setActiveFilter] = useState<ItemType | 'all' | 'favorites' | 'encrypted' | 'trash' | 'scheduled' | 'expiring'>('all');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,14 +55,19 @@ const AuthenticatedContent: React.FC = () => {
   // Load data function
   const loadData = useCallback(async () => {
     try {
-      const [loadedItems, loadedTags, loadedScheduledItems] = await Promise.all([
+      // First, check and move expired items to trash
+      await db.checkExpiredItems();
+      
+      const [loadedItems, loadedTags, loadedScheduledItems, loadedExpiringItems] = await Promise.all([
         db.getItems(),
         db.getTags(),
-        db.getScheduledItems()
+        db.getScheduledItems(),
+        db.getExpiringItems()
       ]);
       setItems(loadedItems);
       setTags(loadedTags);
       setScheduledItems(loadedScheduledItems);
+      setExpiringItems(loadedExpiringItems);
     } catch (err) {
       console.error("Failed to load data", err);
     } finally {
@@ -89,14 +95,26 @@ const AuthenticatedContent: React.FC = () => {
     }
   }, []);
 
+  // Load expiring items function
+  const loadExpiringItems = useCallback(async () => {
+    try {
+      const loadedExpiringItems = await db.getExpiringItems();
+      setExpiringItems(loadedExpiringItems);
+    } catch (err) {
+      console.error("Failed to load expiring items", err);
+    }
+  }, []);
+
   // Load trash items when filter changes to trash
   useEffect(() => {
     if (activeFilter === 'trash') {
       loadTrashItems();
     } else if (activeFilter === 'scheduled') {
       loadScheduledItems();
+    } else if (activeFilter === 'expiring') {
+      loadExpiringItems();
     }
-  }, [activeFilter, loadTrashItems, loadScheduledItems]);
+  }, [activeFilter, loadTrashItems, loadScheduledItems, loadExpiringItems]);
 
   // Manual refresh function with loading indicator
   const handleRefresh = useCallback(async () => {
@@ -729,6 +747,39 @@ const AuthenticatedContent: React.FC = () => {
     showToast(reminderAt ? '알림이 설정되었습니다' : '알림이 삭제되었습니다', 'success');
   };
 
+  // 만료 업데이트
+  const handleUpdateExpiry = (itemId: string, expiresAt: number | null) => {
+    setItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, expiresAt: expiresAt ?? undefined } : item
+    ));
+    if (selectedItem?.id === itemId) {
+      setSelectedItem(prev => prev ? { ...prev, expiresAt: expiresAt ?? undefined } : null);
+    }
+    // 만료 목록도 업데이트
+    if (activeFilter === 'expiring') {
+      loadExpiringItems();
+    } else {
+      // 다른 뷰에서도 expiringItems 업데이트
+      setExpiringItems(prev => {
+        if (expiresAt) {
+          // 만료 설정 시 추가 (이미 있으면 업데이트)
+          const exists = prev.some(i => i.id === itemId);
+          if (exists) {
+            return prev.map(i => i.id === itemId ? { ...i, expiresAt } : i);
+          } else {
+            const item = items.find(i => i.id === itemId);
+            if (item) return [...prev, { ...item, expiresAt }];
+          }
+        } else {
+          // 만료 해제 시 제거
+          return prev.filter(i => i.id !== itemId);
+        }
+        return prev;
+      });
+    }
+    showToast(expiresAt ? '만료가 설정되었습니다' : '만료가 해제되었습니다', 'success');
+  };
+
   // 암호화 토글 모달 열기
   const handleOpenEncryptionModal = (itemId: string) => {
     const item = items.find(i => i.id === itemId);
@@ -862,6 +913,11 @@ const AuthenticatedContent: React.FC = () => {
       return scheduledItems;
     }
 
+    // For expiring view, return expiring items
+    if (activeFilter === 'expiring') {
+      return expiringItems;
+    }
+
     let result = items;
     
     // Filter by favorites
@@ -893,7 +949,7 @@ const AuthenticatedContent: React.FC = () => {
     }
     
     return result;
-  }, [items, trashItems, scheduledItems, activeFilter, activeTagFilter, searchQuery]);
+  }, [items, trashItems, scheduledItems, expiringItems, activeFilter, activeTagFilter, searchQuery]);
 
   // Calculate item counts for sidebar
   const itemCounts = useMemo(() => {
@@ -902,6 +958,7 @@ const AuthenticatedContent: React.FC = () => {
       favorites: items.filter(i => i.isFavorite).length,
       encrypted: items.filter(i => i.isEncrypted).length,
       scheduled: items.filter(i => i.reminderAt != null).length,
+      expiring: expiringItems.length,
       trash: trashItems.length,
       [ItemType.TEXT]: items.filter(i => i.type === ItemType.TEXT).length,
       [ItemType.LINK]: items.filter(i => i.type === ItemType.LINK).length,
@@ -1150,8 +1207,8 @@ const AuthenticatedContent: React.FC = () => {
         </div>
 
         <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto scroll-smooth ${activeFilter === 'scheduled' ? 'flex flex-col' : ''}`}>
-          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash view) */}
-          {activeFilter !== 'trash' && (
+          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash and expiring view) */}
+          {activeFilter !== 'trash' && activeFilter !== 'expiring' && (
             <div className="sticky top-0 z-20 px-4 lg:px-8 pt-4 lg:pt-6 pb-4">
               <div className="max-w-3xl mx-auto w-full">
                 <div className="shadow-lg shadow-slate-900/10 rounded-xl">
@@ -1240,6 +1297,7 @@ const AuthenticatedContent: React.FC = () => {
         onToggleEncryption={handleOpenEncryptionModal}
         onUpdateTitle={handleUpdateTitle}
         onUpdateReminder={handleUpdateReminder}
+        onUpdateExpiry={handleUpdateExpiry}
       />
 
       {/* Settings Modal */}

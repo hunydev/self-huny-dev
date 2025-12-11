@@ -19,13 +19,14 @@ import {
   Info,
   Trash2,
   HelpCircle,
-  Bell
+  Bell,
+  Timer
 } from 'lucide-react';
 import { NavItem, ItemType, Tag } from '../types';
 
 interface SidebarProps {
-  activeFilter: ItemType | 'all' | 'favorites' | 'encrypted' | 'trash' | 'scheduled';
-  onFilterChange: (type: ItemType | 'all' | 'favorites' | 'encrypted' | 'trash' | 'scheduled') => void;
+  activeFilter: ItemType | 'all' | 'favorites' | 'encrypted' | 'trash' | 'scheduled' | 'expiring';
+  onFilterChange: (type: ItemType | 'all' | 'favorites' | 'encrypted' | 'trash' | 'scheduled' | 'expiring') => void;
   activeTagFilter: string | null;
   onTagFilterChange: (tagId: string | null) => void;
   tags: Tag[];
@@ -83,6 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'favorites', label: 'Favorites', icon: <Star size={18} />, filterType: 'favorites' as any },
     { id: 'encrypted', label: 'Encrypted', icon: <LockKeyhole size={18} />, filterType: 'encrypted' as any },
     { id: 'scheduled', label: 'Scheduled', icon: <Bell size={18} />, filterType: 'scheduled' as any },
+    { id: 'expiring', label: 'Expiring', icon: <Timer size={18} />, filterType: 'expiring' as any },
     { id: 'trash', label: 'Trash', icon: <Trash2 size={18} />, filterType: 'trash' as any },
   ];
 

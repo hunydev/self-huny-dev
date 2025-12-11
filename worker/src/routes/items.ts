@@ -235,6 +235,91 @@ itemsRoutes.get('/scheduled', async (c) => {
   }
 });
 
+// Get expiring items (items with expires_at set) - MUST be before /:id route
+itemsRoutes.get('/expiring', async (c) => {
+  try {
+    const user = getUser(c);
+    const userId = user.sub;
+
+    const { results } = await c.env.DB.prepare(`
+      SELECT 
+        i.*,
+        GROUP_CONCAT(it.tag_id) as tag_ids
+      FROM items i
+      LEFT JOIN item_tags it ON i.id = it.item_id
+      WHERE i.user_id = ? AND i.deleted_at IS NULL AND i.expires_at IS NOT NULL
+      GROUP BY i.id
+      ORDER BY i.expires_at ASC
+    `).bind(userId).all();
+    
+    const items = results.map((row: any) => {
+      const isEncrypted = row.is_encrypted === 1;
+      return {
+        id: row.id,
+        type: row.type,
+        content: isEncrypted ? '' : row.content,
+        htmlContent: isEncrypted ? undefined : row.html_content,
+        fileKey: (isEncrypted || row.upload_status) ? undefined : row.file_key,
+        fileName: row.file_name,
+        fileSize: row.file_size,
+        mimeType: row.mime_type,
+        title: row.title,
+        ogImage: isEncrypted ? undefined : row.og_image,
+        ogTitle: row.og_title,
+        ogDescription: isEncrypted ? undefined : row.og_description,
+        tags: row.tag_ids ? row.tag_ids.split(',') : [],
+        isFavorite: row.is_favorite === 1,
+        isEncrypted,
+        isCode: row.is_code === 1,
+        uploadStatus: row.upload_status || null,
+        reminderAt: row.reminder_at,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+      };
+    });
+
+    return c.json(items);
+  } catch (error) {
+    console.error('Error fetching expiring items:', error);
+    return c.json({ error: 'Failed to fetch expiring items' }, 500);
+  }
+});
+
+// Auto-expire items (move expired items to trash) - can be called by cron or on page load
+itemsRoutes.post('/expire-check', async (c) => {
+  try {
+    const user = getUser(c);
+    const userId = user.sub;
+    const now = Date.now();
+
+    // Get expired items
+    const { results: expiredItems } = await c.env.DB.prepare(`
+      SELECT id FROM items 
+      WHERE user_id = ? AND deleted_at IS NULL AND expires_at IS NOT NULL AND expires_at < ?
+    `).bind(userId, now).all();
+
+    if (expiredItems.length === 0) {
+      return c.json({ success: true, expired: 0 });
+    }
+
+    // Move expired items to trash
+    const result = await c.env.DB.prepare(`
+      UPDATE items SET deleted_at = ? 
+      WHERE user_id = ? AND deleted_at IS NULL AND expires_at IS NOT NULL AND expires_at < ?
+    `).bind(now, userId, now).run();
+
+    console.log('[Expire Check] Expired items moved to trash:', result.meta.changes, 'for user:', userId);
+
+    return c.json({ 
+      success: true, 
+      expired: result.meta.changes || 0
+    });
+  } catch (error) {
+    console.error('Error checking expired items:', error);
+    return c.json({ error: 'Failed to check expired items' }, 500);
+  }
+});
+
 // Get all items with their tags
 itemsRoutes.get('/', async (c) => {
   const type = c.req.query('type');
@@ -306,6 +391,7 @@ itemsRoutes.get('/', async (c) => {
         isCode: row.is_code === 1,
         uploadStatus: row.upload_status || null,
         reminderAt: row.reminder_at || null,
+        expiresAt: row.expires_at || null,
         createdAt: row.created_at,
       };
     });
@@ -361,6 +447,7 @@ itemsRoutes.get('/:id', async (c) => {
       isCode: item.is_code === 1,
       uploadStatus: item.upload_status || null,
       reminderAt: item.reminder_at || null,
+      expiresAt: item.expires_at || null,
       createdAt: item.created_at,
     });
   } catch (error) {
@@ -376,7 +463,7 @@ itemsRoutes.post('/', async (c) => {
     const userId = user.sub;
 
     const body = await c.req.json();
-    const { type, content, htmlContent, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode, reminderAt } = body;
+    const { type, content, htmlContent, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode, reminderAt, expiresAt } = body;
 
     // Title is required for encrypted items
     if (isEncrypted && !title) {
@@ -422,8 +509,8 @@ itemsRoutes.post('/', async (c) => {
     }
 
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, reminder_at, user_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, reminder_at, expires_at, user_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, 
       type, 
@@ -441,6 +528,7 @@ itemsRoutes.post('/', async (c) => {
       encryptionHash || null,
       isCode ? 1 : 0,
       reminderAt || null,
+      expiresAt || null,
       userId,
       now
     ).run();
@@ -473,6 +561,7 @@ itemsRoutes.post('/', async (c) => {
       isEncrypted: !!isEncrypted,
       isCode: !!isCode,
       reminderAt: reminderAt || null,
+      expiresAt: expiresAt || null,
       createdAt: now 
     }, 201);
   } catch (error) {
@@ -490,7 +579,7 @@ itemsRoutes.put('/:id', async (c) => {
     const userId = user.sub;
 
     const body = await c.req.json();
-    const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode, reminderAt } = body;
+    const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode, reminderAt, expiresAt } = body;
 
     // 암호화 해제 시 기존 비밀번호 검증
     if (isEncrypted === false) {
@@ -557,6 +646,10 @@ itemsRoutes.put('/:id', async (c) => {
     if (reminderAt !== undefined) {
       updates.push('reminder_at = ?');
       params.push(reminderAt || null);
+    }
+    if (expiresAt !== undefined) {
+      updates.push('expires_at = ?');
+      params.push(expiresAt || null);
     }
     
     if (updates.length > 0) {

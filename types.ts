@@ -33,6 +33,7 @@ export interface Item {
   htmlContent?: string; // Rich HTML content with formatting
   uploadStatus?: 'uploading' | 'failed' | null; // Background upload status (null = completed)
   reminderAt?: number; // Reminder timestamp (for scheduled items)
+  expiresAt?: number; // Expiration timestamp (for auto-delete items)
   createdAt: number;
 }
 

@@ -20,6 +20,7 @@ interface ApiItem {
   isEncrypted: boolean;
   isCode?: boolean;
   reminderAt?: number;
+  expiresAt?: number;
   uploadStatus?: 'uploading' | 'failed' | null;
   createdAt: number;
 }
@@ -74,6 +75,7 @@ const transformItem = (apiItem: ApiItem): Item => ({
   isEncrypted: apiItem.isEncrypted || false,
   isCode: apiItem.isCode || false,
   reminderAt: apiItem.reminderAt,
+  expiresAt: apiItem.expiresAt,
   uploadStatus: apiItem.uploadStatus,
   createdAt: apiItem.createdAt,
 });
@@ -552,4 +554,46 @@ export const updateItemReminder = async (itemId: string, reminderAt: number | nu
   if (!response.ok) {
     throw new Error('Failed to update item reminder');
   }
+};
+
+// Get expiring items (items with expiration date)
+export const getExpiringItems = async (): Promise<Item[]> => {
+  const response = await fetch(`${API_BASE}/items/expiring`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch expiring items');
+  }
+
+  const data: ApiItem[] = await response.json();
+  return data.map(transformItem);
+};
+
+// Update item expiration
+export const updateItemExpiry = async (itemId: string, expiresAt: number | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ expiresAt }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update item expiry');
+  }
+};
+
+// Check and auto-expire items
+export const checkExpiredItems = async (): Promise<number> => {
+  const response = await fetch(`${API_BASE}/items/expire-check`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to check expired items');
+  }
+
+  const data: { expired: number } = await response.json();
+  return data.expired || 0;
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2, ZoomIn, ZoomOut, MoveHorizontal, RotateCcw, Bell } from 'lucide-react';
-import { getFileUrl, unlockItem, updateItemTitle, updateItemReminder } from '../services/db';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2, ZoomIn, ZoomOut, MoveHorizontal, RotateCcw, Bell, Timer } from 'lucide-react';
+import { getFileUrl, unlockItem, updateItemTitle, updateItemReminder, updateItemExpiry } from '../services/db';
 import { suggestTitle } from '../services/geminiService';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
@@ -68,9 +68,10 @@ interface ItemModalProps {
   onToggleEncryption?: (id: string) => void;
   onUpdateTitle?: (itemId: string, title: string) => void;
   onUpdateReminder?: (itemId: string, reminderAt: number | null) => void;
+  onUpdateExpiry?: (itemId: string, expiresAt: number | null) => void;
 }
 
-const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags, onToggleEncryption, onUpdateTitle, onUpdateReminder }) => {
+const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags, onToggleEncryption, onUpdateTitle, onUpdateReminder, onUpdateExpiry }) => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -79,6 +80,10 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   // 리마인더 상태
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const reminderPickerRef = useRef<HTMLDivElement>(null);
+  
+  // 만료 상태
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
+  const expiryPickerRef = useRef<HTMLDivElement>(null);
   
   // 제목 편집 상태
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -197,6 +202,33 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showReminderPicker]);
+
+  // 만료 설정 핸들러
+  const handleSetExpiry = async (expiresAt: number | null) => {
+    if (!item) return;
+    try {
+      await updateItemExpiry(item.id, expiresAt);
+      if (onUpdateExpiry) {
+        onUpdateExpiry(item.id, expiresAt);
+      }
+      setShowExpiryPicker(false);
+    } catch (error) {
+      console.error('Failed to set expiry:', error);
+    }
+  };
+
+  // 만료 피커 외부 클릭 처리
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (expiryPickerRef.current && !expiryPickerRef.current.contains(e.target as Node)) {
+        setShowExpiryPicker(false);
+      }
+    };
+    if (showExpiryPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showExpiryPicker]);
 
   // Reset when item changes
   useEffect(() => {
@@ -858,6 +890,54 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {/* 만료 버튼 */}
+            {!isLocked && (
+              <div className="relative" ref={expiryPickerRef}>
+                <button
+                  onClick={() => setShowExpiryPicker(!showExpiryPicker)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    item.expiresAt
+                      ? 'text-orange-500 hover:bg-orange-50'
+                      : 'text-slate-400 hover:text-orange-500 hover:bg-orange-50'
+                  }`}
+                  title={item.expiresAt ? `만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}` : '만료 설정'}
+                >
+                  <Timer size={20} />
+                </button>
+                
+                {showExpiryPicker && (
+                  <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-48">
+                    <div className="text-sm font-medium text-slate-700 mb-2">만료 기간</div>
+                    <div className="space-y-1">
+                      {[
+                        { label: '1일', days: 1 },
+                        { label: '1주일', days: 7 },
+                        { label: '1개월', days: 30 },
+                        { label: '1년', days: 365 },
+                      ].map(({ label, days }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => handleSetExpiry(Date.now() + days * 24 * 60 * 60 * 1000)}
+                          className="w-full px-3 py-2 text-sm text-left hover:bg-slate-100 text-slate-600 rounded-lg"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      {item.expiresAt && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetExpiry(null)}
+                          className="w-full mt-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg"
+                        >
+                          만료 해제
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* 리마인더 버튼 */}
             {!isLocked && (
               <div className="relative" ref={reminderPickerRef}>

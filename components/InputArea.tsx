@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code, Bell } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code, Bell, Timer } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestTitle } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
@@ -34,9 +34,12 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [isCode, setIsCode] = useState(false);
   const [reminderAt, setReminderAt] = useState<number | null>(null);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const reminderPickerRef = useRef<HTMLDivElement>(null);
+  const expiryPickerRef = useRef<HTMLDivElement>(null);
   const prevActiveTagFilterRef = useRef<string | null | undefined>(undefined);
 
   // Auto-select active filter tag when it changes (replace previous filter tag)
@@ -140,6 +143,19 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showReminderPicker]);
+
+  // Close expiry picker on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (expiryPickerRef.current && !expiryPickerRef.current.contains(e.target as Node)) {
+        setShowExpiryPicker(false);
+      }
+    };
+    if (showExpiryPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showExpiryPicker]);
 
   const detectType = (content: string, file: File | null): ItemType => {
     if (file) {
@@ -376,6 +392,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       encryptionKey: isEncrypted ? encryptionKey : undefined,
       isCode: isCode || undefined,
       reminderAt: reminderAt || undefined,
+      expiresAt: expiresAt || undefined,
     };
 
     if (file) {
@@ -405,6 +422,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setIsCode(false);
     setReminderAt(null);
     setShowReminderPicker(false);
+    setExpiresAt(null);
+    setShowExpiryPicker(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -624,7 +643,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             )}
           </div>
 
-          {/* Options: Code, Encryption & Reminder */}
+          {/* Options: Code, Expiry, Reminder & Encryption */}
           <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
             {/* Code Toggle */}
             <button
@@ -639,31 +658,67 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               <Code size={16} />
               <span className="hidden sm:inline">코드</span>
             </button>
-            {/* Encryption Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsEncrypted(!isEncrypted)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
-                isEncrypted
-                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <LockKeyhole size={16} />
-              <span className="hidden sm:inline">암호화</span>
-            </button>
-            {isEncrypted && (
-              <>
-                <input
-                  type="password"
-                  value={encryptionKey}
-                  onChange={(e) => setEncryptionKey(e.target.value)}
-                  placeholder="비밀번호..."
-                  className="flex-1 min-w-[100px] max-w-[180px] text-sm px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
-                />
-                <span className="text-xs text-amber-600 whitespace-nowrap">제목 필수</span>
-              </>
-            )}
+            
+            {/* Expiry Picker */}
+            <div className="relative" ref={expiryPickerRef}>
+              <button
+                type="button"
+                onClick={() => setShowExpiryPicker(!showExpiryPicker)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  expiresAt
+                    ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <Timer size={16} />
+                {expiresAt ? (
+                  <span className="hidden sm:inline">
+                    {new Date(expiresAt).toLocaleDateString('ko-KR', { 
+                      month: 'short', 
+                      day: 'numeric'
+                    })}
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline">만료</span>
+                )}
+                {expiresAt && (
+                  <X 
+                    size={14} 
+                    className="ml-1 hover:text-red-500"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpiresAt(null);
+                    }}
+                  />
+                )}
+              </button>
+              
+              {showExpiryPicker && (
+                <div className="absolute bottom-full mb-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-48">
+                  <div className="text-sm font-medium text-slate-700 mb-2">만료 기간</div>
+                  <div className="space-y-1">
+                    {[
+                      { label: '1일', days: 1 },
+                      { label: '1주일', days: 7 },
+                      { label: '1개월', days: 30 },
+                      { label: '1년', days: 365 },
+                    ].map(({ label, days }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => {
+                          setExpiresAt(Date.now() + days * 24 * 60 * 60 * 1000);
+                          setShowExpiryPicker(false);
+                        }}
+                        className="w-full px-3 py-2 text-sm text-left hover:bg-slate-100 text-slate-600 rounded-lg"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             
             {/* Reminder Picker */}
             <div className="relative" ref={reminderPickerRef}>
@@ -748,6 +803,32 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 </div>
               )}
             </div>
+            
+            {/* Encryption Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsEncrypted(!isEncrypted)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                isEncrypted
+                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <LockKeyhole size={16} />
+              <span className="hidden sm:inline">암호화</span>
+            </button>
+            {isEncrypted && (
+              <>
+                <input
+                  type="password"
+                  value={encryptionKey}
+                  onChange={(e) => setEncryptionKey(e.target.value)}
+                  placeholder="비밀번호..."
+                  className="flex-1 min-w-[100px] max-w-[180px] text-sm px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+                <span className="text-xs text-amber-600 whitespace-nowrap">제목 필수</span>
+              </>
+            )}
           </div>
 
           {/* Action Bar */}
