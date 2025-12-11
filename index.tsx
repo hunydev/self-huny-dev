@@ -8,6 +8,12 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+// Remove the initial loader
+const initialLoader = document.getElementById('initial-loader');
+if (initialLoader) {
+  initialLoader.remove();
+}
+
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>

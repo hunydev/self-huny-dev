@@ -69,29 +69,39 @@
     </style>
   </head>
   <body class="bg-slate-50 text-slate-900 h-full overflow-hidden">
-    <div id="root" class="h-full"></div>
+    <div id="root" class="h-full">
+      <!-- Loading indicator while React loads -->
+      <div id="initial-loader" style="display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; gap: 12px;">
+        <div style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #4f46e5; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <span style="color: #64748b; font-size: 14px;">Loading...</span>
+      </div>
+    </div>
     <script type="module" src="/index.tsx"></script>
     
     <!-- Lock screen orientation to portrait -->
     <script>
       // Prevent auto-rotation by locking to portrait mode
-      async function lockOrientation() {
+      function lockOrientation() {
         try {
-          if (screen.orientation && screen.orientation.lock) {
-            await screen.orientation.lock('portrait');
-            console.log('Screen orientation locked to portrait');
+          if (screen && screen.orientation && typeof screen.orientation.lock === 'function') {
+            screen.orientation.lock('portrait').catch(function() {
+              // Silently ignore - orientation lock not supported
+            });
           }
         } catch (e) {
-          // Orientation lock not supported or not in fullscreen
-          console.log('Orientation lock not available:', e.message);
+          // Silently ignore any errors
         }
       }
       
-      // Try to lock orientation when page loads
-      window.addEventListener('load', lockOrientation);
+      // Try to lock orientation when page loads (with delay to ensure page is ready)
+      if (document.readyState === 'complete') {
+        lockOrientation();
+      } else {
+        window.addEventListener('load', lockOrientation);
+      }
       
       // Also try when entering fullscreen or standalone mode
-      document.addEventListener('fullscreenchange', () => {
+      document.addEventListener('fullscreenchange', function() {
         if (document.fullscreenElement) {
           lockOrientation();
         }
@@ -101,16 +111,15 @@
     <!-- Register Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', async () => {
-          try {
-            const registration = await navigator.serviceWorker.register('/sw.js');
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(registration) {
             console.log('SW registered:', registration.scope);
             
             // Check for updates periodically
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
+            registration.addEventListener('updatefound', function() {
+              var newWorker = registration.installing;
               if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
+                newWorker.addEventListener('statechange', function() {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                     // New version available - UI will show update button
                     console.log('New SW version available, update button will appear');
@@ -122,33 +131,17 @@
             
             // Register background sync if supported
             if ('sync' in registration) {
-              try {
-                await registration.sync.register('share-sync');
-              } catch (e) {
+              registration.sync.register('share-sync').catch(function() {
                 console.log('Background sync not supported');
-              }
+              });
             }
-            
-            // Register periodic sync if supported
-            if ('periodicSync' in registration) {
-              try {
-                const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
-                if (status.state === 'granted') {
-                  await registration.periodicSync.register('share-sync', {
-                    minInterval: 60 * 60 * 1000 // 1 hour
-                  });
-                }
-              } catch (e) {
-                console.log('Periodic sync not supported');
-              }
-            }
-          } catch (error) {
+          }).catch(function(error) {
             console.log('SW registration failed:', error);
-          }
+          });
         });
         
         // Log when new SW takes control (no auto-reload to prevent PWA issues)
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
           console.log('New service worker activated');
           // Don't auto-reload - the app handles updates via the UI button
         });

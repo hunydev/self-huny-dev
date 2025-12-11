@@ -1,7 +1,7 @@
 // Service Worker for Self PWA
-// Version 14 - Fixed PWA white screen bug completely
-const SW_VERSION = 14;
-const CACHE_NAME = 'self-v14';
+// Version 15 - Improved Android browser compatibility
+const SW_VERSION = 15;
+const CACHE_NAME = 'self-v15';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

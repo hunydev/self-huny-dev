@@ -256,6 +256,7 @@ const AuthenticatedContent: React.FC = () => {
 
   // Check for due reminders and show notifications
   const notifiedReminders = useRef<Set<string>>(new Set());
+  const initialLoadTime = useRef<number>(Date.now());
   
   useEffect(() => {
     // Request notification permission on mount if not already granted
@@ -268,28 +269,35 @@ const AuthenticatedContent: React.FC = () => {
     const checkReminders = () => {
       const now = Date.now();
       items.forEach(item => {
-        if (item.reminderAt && item.reminderAt <= now && !notifiedReminders.current.has(item.id)) {
-          notifiedReminders.current.add(item.id);
+        if (item.reminderAt && !notifiedReminders.current.has(item.id)) {
+          // Only notify for reminders that are due now (within 1 minute window)
+          // Skip reminders that were already past when the page loaded
+          const isDueNow = item.reminderAt <= now && item.reminderAt > now - 60000;
+          const wasAlreadyPast = item.reminderAt < initialLoadTime.current - 60000;
           
-          // Show browser notification
-          if ('Notification' in window && Notification.permission === 'granted') {
-            const title = item.title || (item.type === 'text' ? item.content.slice(0, 50) : item.fileName) || '알림';
-            const notification = new Notification('📅 일정 알림', {
-              body: title,
-              icon: '/icons/icon-192.png',
-              tag: item.id,
-              data: { itemId: item.id },
-            });
+          if (isDueNow && !wasAlreadyPast) {
+            notifiedReminders.current.add(item.id);
+          
+            // Show browser notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+              const title = item.title || (item.type === 'text' ? item.content.slice(0, 50) : item.fileName) || '알림';
+              const notification = new Notification('📅 일정 알림', {
+                body: title,
+                icon: '/icons/icon-192.png',
+                tag: item.id,
+                data: { itemId: item.id },
+              });
+              
+              notification.onclick = () => {
+                window.focus();
+                setSelectedItem(item);
+                notification.close();
+              };
+            }
             
-            notification.onclick = () => {
-              window.focus();
-              setSelectedItem(item);
-              notification.close();
-            };
+            // Also show in-app toast
+            showToast(`일정: ${item.title || item.content?.slice(0, 30) || '알림'}`, 'info');
           }
-          
-          // Also show in-app toast
-          showToast(`일정: ${item.title || item.content?.slice(0, 30) || '알림'}`, 'info');
         }
       });
     };
