@@ -17,7 +17,8 @@ import {
   LockKeyhole,
   Code2,
   Info,
-  Trash2
+  Trash2,
+  HelpCircle
 } from 'lucide-react';
 import { NavItem, ItemType, Tag } from '../types';
 
@@ -64,6 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isCreatingTag, setIsCreatingTag] = useState(false);
   const [showCreditsModal, setShowCreditsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Type filters
   const typeNavItems: NavItem[] = [
@@ -407,6 +409,13 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Info size={18} />
               </button>
+              <button 
+                onClick={() => setShowHelpModal(true)}
+                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="사용방법"
+              >
+                <HelpCircle size={18} />
+              </button>
             </div>
           </div>
         </div>
@@ -510,6 +519,101 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </svg>
                 GitHub에서 보기
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help Modal - 사용방법 */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-800">📖 사용 방법</h3>
+              <button onClick={() => setShowHelpModal(false)} className="p-1 hover:bg-slate-100 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-5 overflow-y-auto max-h-[calc(85vh-60px)]">
+              {/* 기본 사용법 */}
+              <section>
+                <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                  콘텐츠 저장하기
+                </h4>
+                <ul className="space-y-1.5 text-sm text-slate-600 ml-8">
+                  <li>• <strong>텍스트/링크:</strong> 입력창에 직접 붙여넣기 또는 입력</li>
+                  <li>• <strong>파일:</strong> 드래그 앤 드롭 또는 📎 버튼 클릭</li>
+                  <li>• <strong>공유:</strong> 다른 앱에서 Self로 공유 (PWA 설치 시)</li>
+                </ul>
+              </section>
+
+              {/* 레이블 관리 */}
+              <section>
+                <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                  레이블로 정리하기
+                </h4>
+                <ul className="space-y-1.5 text-sm text-slate-600 ml-8">
+                  <li>• 사이드바 Labels에서 <strong>+</strong> 버튼으로 새 레이블 생성</li>
+                  <li>• 레이블 편집에서 <strong>자동 분류 키워드</strong> 설정 가능</li>
+                  <li>• 키워드가 포함된 콘텐츠는 자동으로 해당 레이블이 지정됨</li>
+                </ul>
+              </section>
+
+              {/* 특수 기능 */}
+              <section>
+                <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                  특수 기능
+                </h4>
+                <div className="space-y-2 text-sm text-slate-600 ml-8">
+                  <div className="flex items-start gap-2">
+                    <Star size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                    <span><strong>즐겨찾기:</strong> 중요한 아이템을 별표 표시하여 빠르게 접근</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <LockKeyhole size={16} className="text-indigo-500 shrink-0 mt-0.5" />
+                    <span><strong>암호화:</strong> 민감한 정보를 비밀번호로 보호</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Trash2 size={16} className="text-red-500 shrink-0 mt-0.5" />
+                    <span><strong>휴지통:</strong> 삭제된 아이템은 휴지통에서 복구 가능</span>
+                  </div>
+                </div>
+              </section>
+
+              {/* 팁 */}
+              <section>
+                <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-xs font-bold">💡</span>
+                  유용한 팁
+                </h4>
+                <ul className="space-y-1.5 text-sm text-slate-600 ml-8">
+                  <li>• URL을 입력하면 자동으로 OG 미리보기를 가져옵니다</li>
+                  <li>• 검색창에서 제목, 내용, 파일명으로 검색 가능</li>
+                  <li>• 삭제 후 5초 내 <strong>실행 취소</strong>로 즉시 복구 가능</li>
+                  <li>• PWA 설치 시 홈 화면에서 앱처럼 사용 가능</li>
+                </ul>
+              </section>
+
+              {/* 키보드 단축키 */}
+              <section>
+                <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                  <span className="w-6 h-6 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs font-bold">⌨️</span>
+                  입력 단축키
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-sm ml-8">
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-slate-100 rounded text-xs font-mono">Ctrl/⌘ + Enter</kbd>
+                    <span className="text-slate-600">저장</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-slate-100 rounded text-xs font-mono">Ctrl/⌘ + V</kbd>
+                    <span className="text-slate-600">붙여넣기</span>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
         </div>
