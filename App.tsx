@@ -54,12 +54,14 @@ const AuthenticatedContent: React.FC = () => {
   // Load data function
   const loadData = useCallback(async () => {
     try {
-      const [loadedItems, loadedTags] = await Promise.all([
+      const [loadedItems, loadedTags, loadedScheduledItems] = await Promise.all([
         db.getItems(),
-        db.getTags()
+        db.getTags(),
+        db.getScheduledItems()
       ]);
       setItems(loadedItems);
       setTags(loadedTags);
+      setScheduledItems(loadedScheduledItems);
     } catch (err) {
       console.error("Failed to load data", err);
     } finally {
