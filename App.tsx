@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw, ArrowUp, Zap, Edit3 } from 'lucide-react';
+import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw, ArrowUp, Zap, Edit3, Bell } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import InputArea, { InputAreaHandle } from './components/InputArea';
 import Feed from './components/Feed';
@@ -793,6 +793,40 @@ const AuthenticatedContent: React.FC = () => {
     }
   };
 
+  // Get the next upcoming reminder (future only)
+  const upcomingReminder = useMemo(() => {
+    const now = Date.now();
+    const futureItems = scheduledItems.filter(item => item.reminderAt && item.reminderAt > now);
+    if (futureItems.length === 0) return null;
+    
+    // Already sorted by reminderAt in ascending order from API
+    const nextItem = futureItems[0];
+    if (!nextItem.reminderAt) return null;
+    
+    const reminderDate = new Date(nextItem.reminderAt);
+    const diffMs = nextItem.reminderAt - now;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    
+    let timeText: string;
+    if (diffMinutes < 60) {
+      timeText = `${diffMinutes}분 후`;
+    } else if (diffHours < 24) {
+      timeText = `${diffHours}시간 후`;
+    } else if (diffDays < 7) {
+      timeText = `${diffDays}일 후`;
+    } else {
+      timeText = reminderDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    }
+    
+    return {
+      item: nextItem,
+      timeText,
+      isUrgent: diffHours < 24
+    };
+  }, [scheduledItems]);
+
   // Filtered items based on type, tag, and search
   const filteredItems = useMemo(() => {
     // For trash view, return trash items
@@ -1020,6 +1054,25 @@ const AuthenticatedContent: React.FC = () => {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Upcoming reminder indicator */}
+            {upcomingReminder && (
+              <button
+                onClick={() => {
+                  setActiveFilter('scheduled');
+                  setSelectedItem(upcomingReminder.item);
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs ${
+                  upcomingReminder.isUrgent 
+                    ? 'bg-orange-50 text-orange-600 border border-orange-200' 
+                    : 'bg-blue-50 text-blue-600 border border-blue-200'
+                }`}
+                title={upcomingReminder.item.title || upcomingReminder.item.content?.substring(0, 50) || '예정된 알림'}
+              >
+                <Bell size={12} className={upcomingReminder.isUrgent ? 'animate-pulse' : ''} />
+                <span className="max-w-[60px] truncate hidden sm:inline">{upcomingReminder.item.title || '알림'}</span>
+                <span className="font-medium">{upcomingReminder.timeText}</span>
+              </button>
+            )}
             {swUpdateAvailable && (
               <button
                 onClick={applySwUpdate}
@@ -1043,6 +1096,25 @@ const AuthenticatedContent: React.FC = () => {
 
         {/* Desktop Header with User Menu */}
         <div className="hidden lg:flex h-14 items-center justify-end px-6 bg-white border-b border-slate-200 shrink-0 gap-3">
+          {/* Upcoming reminder indicator */}
+          {upcomingReminder && (
+            <button
+              onClick={() => {
+                setActiveFilter('scheduled');
+                setSelectedItem(upcomingReminder.item);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm ${
+                upcomingReminder.isUrgent 
+                  ? 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100' 
+                  : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
+              } transition-colors`}
+              title={upcomingReminder.item.title || upcomingReminder.item.content?.substring(0, 50) || '예정된 알림'}
+            >
+              <Bell size={14} className={upcomingReminder.isUrgent ? 'animate-pulse' : ''} />
+              <span className="max-w-[150px] truncate">{upcomingReminder.item.title || '알림'}</span>
+              <span className="font-medium">{upcomingReminder.timeText}</span>
+            </button>
+          )}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}

@@ -238,7 +238,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
     // Encrypted item - show lock screen
     if (item.isEncrypted) {
       return (
-        <div className="p-6 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 gap-3">
+        <div className="relative p-6 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 gap-3">
+          {item.reminderAt && (
+            <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+              <Bell size={12} className="text-white" />
+            </div>
+          )}
           <div className="w-14 h-14 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-400">
             <LockKeyhole size={28} />
           </div>
@@ -259,6 +264,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
                 <ImageIcon size={32} />
               </div>
             )}
+            {/* 알림 배지 */}
+            {item.reminderAt && (
+              <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                <Bell size={12} className="text-white" fill="currentColor" />
+              </div>
+            )}
           </div>
         );
       case ItemType.VIDEO:
@@ -268,6 +279,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
               <video src={fileUrl} controls className="w-full h-full" preload="metadata" />
             ) : (
               <Video size={32} className="text-white/50" />
+            )}
+            {/* 알림 배지 */}
+            {item.reminderAt && (
+              <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                <Bell size={12} className="text-white" fill="currentColor" />
+              </div>
             )}
           </div>
         );
@@ -279,6 +296,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
         if (isAudio && fileUrl) {
           return (
             <div className="p-4 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-purple-50 to-indigo-50 text-slate-500 gap-3 relative">
+              {item.reminderAt && (
+                <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                  <Bell size={12} className="text-white" />
+                </div>
+              )}
               <div 
                 className="w-14 h-14 bg-white rounded-full shadow-md flex items-center justify-center text-purple-600 cursor-pointer hover:scale-105 transition-transform"
                 onClick={(e) => {
@@ -314,11 +336,17 @@ const FeedItem: React.FC<FeedItemProps> = ({
         
         return (
           <div className={`p-4 flex flex-col items-center justify-center aspect-square ${fileStyle.bg} text-slate-500 gap-2 relative`}>
-            {previewCheck.canPreview && (
-              <div className="absolute top-2 right-2">
+            {/* 우측 상단 배지들 */}
+            <div className="absolute top-2 right-2 flex items-center gap-1">
+              {item.reminderAt && (
+                <div className="p-1 bg-blue-500 rounded" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                  <Bell size={12} className="text-white" fill="currentColor" />
+                </div>
+              )}
+              {previewCheck.canPreview && (
                 <Eye size={14} className={isCodeCategory ? 'text-emerald-400' : 'text-indigo-500'} />
-              </div>
-            )}
+              )}
+            </div>
             <div className={`w-12 h-12 ${fileStyle.iconBg} rounded-lg shadow-sm flex items-center justify-center ${fileStyle.iconColor}`}>
               <FileText size={24} />
             </div>
@@ -331,7 +359,13 @@ const FeedItem: React.FC<FeedItemProps> = ({
         // If OG image exists, show rich preview card
         if (item.ogImage) {
           return (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full relative">
+              {/* 알림 배지 */}
+              {item.reminderAt && (
+                <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                  <Bell size={12} className="text-white" fill="currentColor" />
+                </div>
+              )}
               {/* OG Image with YouTube play overlay */}
               <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
                 <img 
@@ -383,7 +417,13 @@ const FeedItem: React.FC<FeedItemProps> = ({
 
         // Fallback: Show simple link card (no OG image)
         return (
-          <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 flex flex-col h-full min-h-[120px]">
+          <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 flex flex-col h-full min-h-[120px] relative">
+            {/* 알림 배지 */}
+            {item.reminderAt && (
+              <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                <Bell size={12} className="text-white" fill="currentColor" />
+              </div>
+            )}
             <div className="flex items-center gap-2 mb-2 text-indigo-600">
               <ExternalLink size={16} />
               <span className="text-xs font-bold uppercase tracking-wider">Link</span>
@@ -429,6 +469,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
+                  {item.reminderAt && (
+                    <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                      <Bell size={12} className="text-white" />
+                    </div>
+                  )}
                 </div>
                 {/* OG Content */}
                 {(item.ogTitle || item.ogDescription) && (
@@ -454,7 +499,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
         // 코드 블록 스타일
         if (item.isCode) {
           return (
-            <div className="p-3 bg-slate-900 flex flex-col h-full min-h-[100px] overflow-hidden">
+            <div className="relative p-3 bg-slate-900 flex flex-col h-full min-h-[100px] overflow-hidden">
+              {item.reminderAt && (
+                <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                  <Bell size={12} className="text-white" />
+                </div>
+              )}
               <div className="flex items-center gap-2 mb-2 text-slate-400">
                 <Code size={14} />
                 <span className="text-[10px] font-medium uppercase tracking-wider">Code</span>
@@ -469,7 +519,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
         // HTML 서식 콘텐츠가 있는 경우
         if (item.htmlContent) {
           return (
-            <div className="p-4 bg-white flex flex-col h-full min-h-[100px] max-h-[200px] overflow-hidden">
+            <div className="relative p-4 bg-white flex flex-col h-full min-h-[100px] max-h-[200px] overflow-hidden">
+              {item.reminderAt && (
+                <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                  <Bell size={12} className="text-white" />
+                </div>
+              )}
               <div 
                 className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none overflow-hidden html-content-container"
                 style={{ 
@@ -500,7 +555,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
         }
         
         return (
-          <div className="p-4 bg-white flex flex-col h-full min-h-[100px]">
+          <div className="relative p-4 bg-white flex flex-col h-full min-h-[100px]">
+            {item.reminderAt && (
+              <div className="absolute top-2 right-2 p-1 bg-blue-500 rounded z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                <Bell size={12} className="text-white" />
+              </div>
+            )}
             <p className="text-sm text-slate-700 whitespace-pre-wrap line-clamp-6 leading-relaxed">
               {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
             </p>
@@ -637,11 +697,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-medium">{formattedDate}</span>
-          {item.reminderAt && (
-            <span className="flex items-center gap-0.5 text-blue-500" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
-              <Bell size={12} fill="currentColor" />
-            </span>
-          )}
         </div>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">

@@ -3,6 +3,7 @@ import { Item, Tag } from '../types';
 import { ChevronLeft, ChevronRight, Bell, Calendar, FileText, Image as ImageIcon, Video, File as FileIcon, Link as LinkIcon } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { getFileUrl } from '../services/db';
 
 interface ScheduledViewProps {
   items: Item[];
@@ -42,6 +43,62 @@ const getTypeIcon = (type: string) => {
     case 'file': return <FileIcon size={14} className="text-orange-400" />;
     default: return <FileText size={14} className="text-slate-400" />;
   }
+};
+
+// 캘린더 셀용 아이템 썸네일
+const ItemThumbnail: React.FC<{ item: Item; onClick: (e: React.MouseEvent) => void }> = ({ item, onClick }) => {
+  const fileUrl = item.fileKey ? getFileUrl(item.fileKey) : null;
+  
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClick(e);
+  };
+  
+  // 이미지 아이템
+  if (item.type === 'image' && fileUrl) {
+    return (
+      <button
+        onClick={handleClick}
+        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:ring-2 hover:ring-indigo-400 transition-all shrink-0"
+        title={item.title || item.fileName || '이미지'}
+      >
+        <img src={fileUrl} alt="" className="w-full h-full object-cover" />
+      </button>
+    );
+  }
+  
+  // OG 이미지가 있는 경우
+  if (item.ogImage) {
+    return (
+      <button
+        onClick={handleClick}
+        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:ring-2 hover:ring-indigo-400 transition-all shrink-0"
+        title={item.title || item.ogTitle || 'Link'}
+      >
+        <img src={item.ogImage} alt="" className="w-full h-full object-cover" />
+      </button>
+    );
+  }
+  
+  // 타입별 아이콘
+  const iconBgMap: Record<string, string> = {
+    text: 'bg-slate-100',
+    link: 'bg-blue-100',
+    video: 'bg-purple-100',
+    file: 'bg-orange-100',
+    image: 'bg-emerald-100',
+  };
+  const iconBg = iconBgMap[item.type] || 'bg-slate-100';
+  
+  return (
+    <button
+      onClick={handleClick}
+      className={`w-6 h-6 rounded ${iconBg} flex items-center justify-center hover:ring-2 hover:ring-indigo-400 transition-all shrink-0`}
+      title={item.title || item.content?.slice(0, 30) || item.fileName || '아이템'}
+    >
+      {getTypeIcon(item.type)}
+    </button>
+  );
 };
 
 const ScheduledView: React.FC<ScheduledViewProps> = ({ items, tags: _tags, onItemClick }) => {
@@ -107,9 +164,9 @@ const ScheduledView: React.FC<ScheduledViewProps> = ({ items, tags: _tags, onIte
   const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
   return (
-    <div className="h-full flex gap-4 p-4 bg-slate-50">
-      {/* 캘린더 영역 (3/4) */}
-      <div className="flex-[3] bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col">
+    <div className="h-full flex flex-col lg:flex-row gap-4 p-4 bg-slate-50">
+      {/* 캘린더 영역 - 모바일에서 상단, 데스크톱에서 좌측 */}
+      <div className="lg:flex-[3] bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col min-h-[400px] lg:min-h-0">
         {/* 캘린더 헤더 */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -158,43 +215,51 @@ const ScheduledView: React.FC<ScheduledViewProps> = ({ items, tags: _tags, onIte
         <div className="grid grid-cols-7 gap-1 flex-1">
           {calendarDays.map((day, i) => {
             const dateKey = format(day, 'yyyy-MM-dd');
-            const hasItems = itemsByDate.has(dateKey);
-            const itemCount = itemsByDate.get(dateKey)?.length || 0;
+            const dayItems = itemsByDate.get(dateKey) || [];
+            const hasItems = dayItems.length > 0;
             const isCurrentMonth = isSameMonth(day, currentMonth);
             const isSelected = selectedDate && isSameDay(day, selectedDate);
             const dayOfWeek = day.getDay();
 
             return (
-              <button
+              <div
                 key={i}
                 onClick={() => handleDateClick(day)}
-                disabled={!hasItems}
                 className={`
-                  relative p-2 rounded-lg text-sm font-medium transition-all min-h-[60px] flex flex-col items-center
-                  ${!isCurrentMonth ? 'text-slate-300' : dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : 'text-slate-700'}
+                  relative p-1.5 rounded-lg text-sm transition-all min-h-[70px] lg:min-h-[80px] flex flex-col
+                  ${!isCurrentMonth ? 'text-slate-300 bg-slate-50/50' : dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : 'text-slate-700'}
                   ${isToday(day) ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}
-                  ${isSelected ? 'bg-indigo-100 text-indigo-700' : hasItems ? 'hover:bg-slate-100 cursor-pointer' : 'cursor-default'}
-                  ${hasItems && !isSelected ? 'bg-blue-50' : ''}
+                  ${isSelected ? 'bg-indigo-100' : hasItems ? 'bg-blue-50 hover:bg-blue-100 cursor-pointer' : 'bg-white'}
+                  ${hasItems ? 'cursor-pointer' : 'cursor-default'}
                 `}
               >
-                <span className={isToday(day) ? 'font-bold' : ''}>
+                <span className={`text-xs font-medium ${isToday(day) ? 'font-bold' : ''}`}>
                   {format(day, 'd')}
                 </span>
+                {/* 아이템 썸네일 그리드 */}
                 {hasItems && (
-                  <div className="flex items-center gap-0.5 mt-1">
-                    <Bell size={10} className={isSelected ? 'text-indigo-600' : 'text-blue-500'} fill="currentColor" />
-                    <span className={`text-[10px] ${isSelected ? 'text-indigo-600' : 'text-blue-600'}`}>
-                      {itemCount}
-                    </span>
+                  <div className="flex flex-wrap gap-0.5 mt-1 overflow-hidden flex-1">
+                    {dayItems.slice(0, 6).map(item => (
+                      <ItemThumbnail 
+                        key={item.id} 
+                        item={item} 
+                        onClick={() => onItemClick(item)}
+                      />
+                    ))}
+                    {dayItems.length > 6 && (
+                      <div className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-medium">
+                        +{dayItems.length - 6}
+                      </div>
+                    )}
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
 
-        {/* 범례 */}
-        <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
+        {/* 범례 - 데스크톱에서만 */}
+        <div className="hidden lg:flex items-center justify-center gap-4 mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-blue-50 border border-blue-200"></div>
             <span>일정 있음</span>
@@ -210,8 +275,8 @@ const ScheduledView: React.FC<ScheduledViewProps> = ({ items, tags: _tags, onIte
         </div>
       </div>
 
-      {/* 리스트 영역 (1/4) */}
-      <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-w-[280px]">
+      {/* 리스트 영역 - 모바일에서 하단, 데스크톱에서 우측 */}
+      <div className="lg:flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-h-[300px] lg:min-h-0 lg:min-w-[280px]">
         {/* 리스트 헤더 */}
         <div className="px-4 py-3 border-b border-slate-100">
           <div className="flex items-center justify-between">
@@ -236,7 +301,7 @@ const ScheduledView: React.FC<ScheduledViewProps> = ({ items, tags: _tags, onIte
         {/* 아이템 리스트 */}
         <div className="flex-1 overflow-y-auto">
           {displayItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 p-4">
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 p-4 min-h-[150px]">
               <Bell size={32} className="mb-2 opacity-50" />
               <p className="text-sm">일정이 없습니다</p>
             </div>
