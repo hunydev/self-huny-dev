@@ -225,3 +225,104 @@ JSON:`;
     return c.json({ error: 'Internal server error' }, 500);
   }
 });
+
+// Gemini API endpoint for formatting text with minimal formatting
+geminiRoutes.post('/format-text', async (c) => {
+  try {
+    const { content } = await c.req.json();
+    
+    if (!content || typeof content !== 'string') {
+      return c.json({ error: 'Content is required' }, 400);
+    }
+
+    // Secrets Store에서 API 키 가져오기
+    const apiKey = await c.env.GEMINI_API_KEY.get();
+    if (!apiKey) {
+      return c.json({ error: 'Gemini API key not configured' }, 500);
+    }
+
+    // Truncate content if too long (keep first 5000 chars)
+    const truncatedContent = content.length > 5000 
+      ? content.substring(0, 5000) + '...' 
+      : content;
+
+    const prompt = `당신은 텍스트 서식 전문가입니다. 아래 텍스트를 읽기 쉽게 최소한의 HTML 서식을 적용해주세요.
+
+규칙:
+1. 원본 내용과 의미를 절대 변경하지 마세요
+2. 적용 가능한 서식만 사용:
+   - 목록이 있으면 <ul><li> 또는 <ol><li> 사용
+   - 중요 키워드에 <strong> 또는 <em> 적용
+   - 문단 구분이 필요하면 <p> 사용
+   - 제목/섹션이 있으면 <h3> 또는 <h4> 사용
+   - 코드가 있으면 <code> 사용
+3. 과도한 서식은 피하세요 - 가독성 향상이 목적입니다
+4. HTML 태그만 포함된 결과를 출력하세요 (설명이나 마크다운 없이)
+5. 서식이 필요없는 단순 텍스트면 원본 그대로 출력
+
+입력 텍스트:
+${truncatedContent}
+
+서식 적용된 HTML:`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 4096,
+            topP: 0.9,
+          }
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Gemini] API error:', response.status, errorText);
+      return c.json({ error: 'Failed to format text' }, 500);
+    }
+
+    const data = await response.json() as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            text?: string;
+          }>;
+        };
+      }>;
+    };
+
+    let formatted = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    
+    if (!formatted) {
+      return c.json({ error: 'No response generated' }, 500);
+    }
+
+    // Remove markdown code blocks if present
+    if (formatted.startsWith('```html')) {
+      formatted = formatted.slice(7);
+    } else if (formatted.startsWith('```')) {
+      formatted = formatted.slice(3);
+    }
+    if (formatted.endsWith('```')) {
+      formatted = formatted.slice(0, -3);
+    }
+    formatted = formatted.trim();
+
+    return c.json({ formatted });
+  } catch (error) {
+    console.error('[Gemini] Error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});

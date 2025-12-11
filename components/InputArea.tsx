@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code, Bell, Timer } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code, Bell, Timer, Sparkles } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
-import { suggestTitle } from '../services/geminiService';
+import { suggestTitle, formatText } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
 import { sanitizeHtml, hasRichFormatting } from '../utils/htmlSanitizer';
 
@@ -37,6 +37,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [showExpiryPicker, setShowExpiryPicker] = useState(false);
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
+  const [isFormatting, setIsFormatting] = useState(false);
+  const [hasContent, setHasContent] = useState(false); // Track if user has entered content
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const reminderPickerRef = useRef<HTMLDivElement>(null);
   const expiryPickerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +97,11 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     
     setAutoMatchedTags(newAutoMatched);
   }, [text, title, availableTags]);
+
+  // Update hasContent when text, file, title, htmlContent changes
+  useEffect(() => {
+    setHasContent(!!(text || file || title || htmlContent || selectedTags.length > 0 || isEncrypted || isCode || reminderAt || expiresAt));
+  }, [text, file, title, htmlContent, selectedTags, isEncrypted, isCode, reminderAt, expiresAt]);
 
   // Expose focus and setShareData methods to parent
   useImperativeHandle(ref, () => ({
@@ -365,6 +372,38 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     }
   };
 
+  const handleFormatText = async () => {
+    if (!text || htmlContent) return;
+    setIsFormatting(true);
+    try {
+      const formatted = await formatText(text);
+      if (formatted && formatted !== text) {
+        setHtmlContent(formatted);
+      }
+    } catch (error) {
+      console.error('Failed to format text:', error);
+    } finally {
+      setIsFormatting(false);
+    }
+  };
+
+  // Handle blur - collapse only if no content
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    // Check if focus is moving to a child element
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    const currentTarget = e.currentTarget as HTMLElement;
+    
+    // Don't collapse if clicking within the InputArea component
+    if (relatedTarget && currentTarget.contains(relatedTarget)) {
+      return;
+    }
+    
+    // Collapse only if there's no content
+    if (!hasContent) {
+      setIsExpanded(false);
+    }
+  }, [hasContent]);
+
   const handleSubmit = () => {
     if (!text && !file) return;
 
@@ -458,6 +497,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       className={`bg-white rounded-xl shadow-sm border border-slate-200 transition-all duration-200 ${isExpanded ? 'p-4' : 'p-2'}`}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
+      onBlur={handleBlur}
     >
       {/* File Preview Area */}
       {file && (
@@ -557,6 +597,23 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               {isSuggestingTitle ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
             </button>
           </div>
+
+          {/* AI Format Button - shown when text exists but no htmlContent */}
+          {text && !htmlContent && (
+            <button
+              onClick={handleFormatText}
+              disabled={isFormatting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="AI로 서식 자동 적용"
+            >
+              {isFormatting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              <span>{isFormatting ? '서식 적용 중...' : 'AI 서식 적용'}</span>
+            </button>
+          )}
 
           {/* Tag Selection */}
           <div className="flex flex-wrap gap-2 relative">
@@ -758,7 +815,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               </button>
               
               {showReminderPicker && (
-                <div className="absolute bottom-full mb-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-64">
+                <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-64">
                   <div className="text-sm font-medium text-slate-700 mb-2">알림 설정</div>
                   <div className="space-y-2">
                     <input

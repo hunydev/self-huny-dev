@@ -20,7 +20,8 @@ import {
   Trash2,
   HelpCircle,
   Bell,
-  Timer
+  Timer,
+  Mail
 } from 'lucide-react';
 import { NavItem, ItemType, Tag } from '../types';
 
@@ -420,6 +421,13 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <HelpCircle size={18} />
               </button>
+              <a 
+                href="mailto:self@huny.dev"
+                className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Contact: self@huny.dev"
+              >
+                <Mail size={18} />
+              </a>
             </div>
           </div>
         </div>

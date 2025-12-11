@@ -43,6 +43,23 @@ export const suggestTitle = async (content: string): Promise<string> => {
   return data.title;
 };
 
+// Format text with AI (apply minimal formatting for readability)
+export const formatText = async (content: string): Promise<string> => {
+  const response = await fetch(`${API_BASE}/gemini/format-text`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to format text' })) as { error?: string };
+    throw new Error(error.error || 'Failed to format text');
+  }
+
+  const data = await response.json() as { formatted: string };
+  return data.formatted;
+};
+
 // Parse items from unstructured text using Gemini AI
 export const parseItems = async (content: string): Promise<ParsedItem[]> => {
   const response = await fetch(`${API_BASE}/gemini/parse-items`, {
