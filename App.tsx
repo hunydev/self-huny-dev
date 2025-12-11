@@ -41,6 +41,8 @@ const AuthenticatedContent: React.FC = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [shareChoiceData, setShareChoiceData] = useState<ShareChoiceData | null>(null);
   const [encryptionTarget, setEncryptionTarget] = useState<{ id: string; isEncrypted: boolean; title?: string } | null>(null);
+  const [swVersion, setSwVersion] = useState<number | null>(null);
+  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
   const inputAreaRef = useRef<InputAreaHandle>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -99,6 +101,66 @@ const AuthenticatedContent: React.FC = () => {
   const processShareQueue = useCallback(async () => {
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'PROCESS_SHARE_QUEUE' });
+    }
+  }, []);
+
+  // Get SW version and check for updates
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const getSwVersion = async () => {
+      const registration = await navigator.serviceWorker.ready;
+      const sw = registration.active;
+      if (sw) {
+        const messageChannel = new MessageChannel();
+        messageChannel.port1.onmessage = (event: MessageEvent) => {
+          if (event.data?.version) {
+            setSwVersion(event.data.version);
+          }
+        };
+        sw.postMessage({ type: 'GET_VERSION' }, [messageChannel.port2]);
+      }
+    };
+
+    // Check for SW updates
+    const checkForUpdates = async () => {
+      const registration = await navigator.serviceWorker.ready;
+      
+      // Listen for new SW waiting
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New SW is waiting
+              setSwUpdateAvailable(true);
+            }
+          });
+        }
+      });
+
+      // Check if there's already a waiting SW
+      if (registration.waiting) {
+        setSwUpdateAvailable(true);
+      }
+
+      // Manually check for updates
+      registration.update();
+    };
+
+    getSwVersion();
+    checkForUpdates();
+  }, []);
+
+  // Function to apply SW update
+  const applySwUpdate = useCallback(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    if (registration.waiting) {
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      // Reload after new SW takes over
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
     }
   }, []);
 
@@ -741,8 +803,20 @@ const AuthenticatedContent: React.FC = () => {
             />
             <span className="ml-2 font-bold text-slate-800">Self.</span>
             <span className="ml-2 text-[10px] text-slate-400 font-mono">{__COMMIT_HASH__}</span>
+            {swVersion && (
+              <span className="ml-1 text-[10px] text-slate-400 font-mono">SW:{swVersion}</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {swUpdateAvailable && (
+              <button
+                onClick={applySwUpdate}
+                className="px-2 py-1 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600 animate-pulse"
+                title="새 버전 적용"
+              >
+                업데이트
+              </button>
+            )}
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}

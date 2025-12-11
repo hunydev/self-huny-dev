@@ -1,6 +1,7 @@
 // Service Worker for Self PWA
-// Version 11 - Simplified, no share-target interception (server handles it)
-const CACHE_NAME = 'self-v11';
+// Version 12 - Added version reporting to UI
+const SW_VERSION = 12;
+const CACHE_NAME = 'self-v12';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -11,7 +12,7 @@ const STATIC_ASSETS = [
 
 // Install event
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing version 11');
+  console.log('[SW] Installing version', SW_VERSION);
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
@@ -23,7 +24,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating version 11');
+  console.log('[SW] Activating version', SW_VERSION);
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -91,5 +92,12 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+    return;
+  }
+  
+  // Return SW version when requested
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.ports[0]?.postMessage({ version: SW_VERSION });
+    return;
   }
 });
