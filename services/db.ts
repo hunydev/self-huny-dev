@@ -19,6 +19,7 @@ interface ApiItem {
   isFavorite: boolean;
   isEncrypted: boolean;
   isCode?: boolean;
+  uploadStatus?: 'uploading' | 'failed' | null;
   createdAt: number;
 }
 
@@ -71,6 +72,7 @@ const transformItem = (apiItem: ApiItem): Item => ({
   isFavorite: apiItem.isFavorite || false,
   isEncrypted: apiItem.isEncrypted || false,
   isCode: apiItem.isCode || false,
+  uploadStatus: apiItem.uploadStatus,
   createdAt: apiItem.createdAt,
 });
 

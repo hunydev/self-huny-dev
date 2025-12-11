@@ -177,6 +177,32 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
   const imageFitClass = settings.imageFit === 'contain' ? 'object-contain' : 'object-cover';
 
   const renderThumbnail = () => {
+    // Uploading item - show upload in progress
+    if (item.uploadStatus === 'uploading') {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-indigo-50 to-indigo-100 text-indigo-500 gap-3">
+          <div className="w-14 h-14 bg-white rounded-full shadow-sm flex items-center justify-center">
+            <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          </div>
+          <span className="text-xs font-medium text-indigo-600">업로드 중...</span>
+          <span className="text-[10px] text-indigo-400">{item.fileName}</span>
+        </div>
+      );
+    }
+    
+    // Upload failed - show error
+    if (item.uploadStatus === 'failed') {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-red-50 to-red-100 text-red-500 gap-3">
+          <div className="w-14 h-14 bg-white rounded-full shadow-sm flex items-center justify-center text-red-400">
+            <FileText size={28} />
+          </div>
+          <span className="text-xs font-medium text-red-600">업로드 실패</span>
+          <span className="text-[10px] text-red-400">{item.fileName}</span>
+        </div>
+      );
+    }
+    
     // Encrypted item - show lock screen
     if (item.isEncrypted) {
       return (

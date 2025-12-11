@@ -31,6 +31,7 @@ export interface Item {
   isEncrypted: boolean; // Encryption flag
   isCode?: boolean; // Code block flag
   htmlContent?: string; // Rich HTML content with formatting
+  uploadStatus?: 'uploading' | 'failed' | null; // Background upload status (null = completed)
   createdAt: number;
 }
 

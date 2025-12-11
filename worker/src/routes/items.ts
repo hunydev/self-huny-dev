@@ -163,8 +163,8 @@ itemsRoutes.get('/', async (c) => {
         // Hide content for encrypted items
         content: isEncrypted ? '' : row.content,
         htmlContent: isEncrypted ? undefined : row.html_content,
-        // Hide fileKey for encrypted items
-        fileKey: isEncrypted ? undefined : row.file_key,
+        // Hide fileKey for encrypted items (also hide if upload is in progress)
+        fileKey: (isEncrypted || row.upload_status) ? undefined : row.file_key,
         fileName: row.file_name,
         fileSize: row.file_size,
         mimeType: row.mime_type,
@@ -176,6 +176,7 @@ itemsRoutes.get('/', async (c) => {
         isFavorite: row.is_favorite === 1,
         isEncrypted,
         isCode: row.is_code === 1,
+        uploadStatus: row.upload_status || null,
         createdAt: row.created_at,
       };
     });
@@ -216,8 +217,8 @@ itemsRoutes.get('/:id', async (c) => {
       // Hide content for encrypted items
       content: isEncrypted ? '' : item.content,
       htmlContent: isEncrypted ? undefined : item.html_content,
-      // Hide fileKey for encrypted items
-      fileKey: isEncrypted ? undefined : item.file_key,
+      // Hide fileKey for encrypted items (also hide if upload is in progress)
+      fileKey: (isEncrypted || item.upload_status) ? undefined : item.file_key,
       fileName: item.file_name,
       fileSize: item.file_size,
       mimeType: item.mime_type,
@@ -229,6 +230,7 @@ itemsRoutes.get('/:id', async (c) => {
       isFavorite: item.is_favorite === 1,
       isEncrypted,
       isCode: item.is_code === 1,
+      uploadStatus: item.upload_status || null,
       createdAt: item.created_at,
     });
   } catch (error) {

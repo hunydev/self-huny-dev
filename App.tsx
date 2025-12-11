@@ -16,7 +16,7 @@ import { UploadProvider, useUpload } from './contexts/UploadContext';
 import { Item, ItemType, Tag } from './types';
 import * as db from './services/db';
 
-type ShareStatus = 'success' | 'error' | 'pending' | null;
+type ShareStatus = 'success' | 'error' | 'pending' | 'uploading' | null;
 
 interface ShareChoiceData {
   content: string;
@@ -175,13 +175,13 @@ const AuthenticatedContent: React.FC = () => {
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
       
-      // Clear notification after delay (longer for pending)
-      const delay = shared === 'pending' ? 5000 : 3000;
+      // Clear notification after delay (longer for pending/uploading)
+      const delay = shared === 'pending' ? 5000 : shared === 'uploading' ? 10000 : 3000;
       setTimeout(() => setShareStatus(null), delay);
       
       // Reload items to show newly shared content
       // Also claim any orphan items from PWA share target
-      if (shared === 'success') {
+      if (shared === 'success' || shared === 'uploading') {
         // First claim any orphan items (from PWA share target which can't use auth)
         db.claimOrphanItems()
           .then((result) => {
@@ -191,6 +191,26 @@ const AuthenticatedContent: React.FC = () => {
           })
           .catch((err) => console.error('[Share] Failed to claim orphans:', err))
           .finally(() => loadData());
+        
+        // For uploading status, poll for completion
+        if (shared === 'uploading') {
+          const pollInterval = setInterval(async () => {
+            try {
+              const items = await db.getItems();
+              const hasUploading = items.some(item => item.uploadStatus === 'uploading');
+              if (!hasUploading) {
+                clearInterval(pollInterval);
+                loadData();
+                showToast('파일 업로드가 완료되었습니다', 'success');
+              }
+            } catch (err) {
+              console.error('[Share] Poll error:', err);
+            }
+          }, 3000);
+          
+          // Stop polling after 2 minutes max
+          setTimeout(() => clearInterval(pollInterval), 120000);
+        }
       }
     }
     
@@ -596,6 +616,11 @@ const AuthenticatedContent: React.FC = () => {
         bg: 'bg-amber-500',
         icon: <Clock size={18} />,
         text: '오프라인 - 연결 시 자동 저장됩니다',
+      },
+      uploading: {
+        bg: 'bg-indigo-500',
+        icon: <RefreshCw size={18} className="animate-spin" />,
+        text: '파일 업로드 중...',
       },
     };
 
