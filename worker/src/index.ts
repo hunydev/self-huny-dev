@@ -270,33 +270,8 @@ async function handleShareTarget(request: Request, env: Env, ctx: ExecutionConte
   const userId = user?.sub || null;
   console.log('[Share Target Direct] User ID from cookie:', userId);
   
-  // Check if this is a large file upload (> 500KB) - process entirely in background
-  const contentLengthNum = parseInt(contentLength || '0', 10);
-  const INSTANT_RESPONSE_THRESHOLD = 500 * 1024; // 500KB
-  
-  if (contentType.includes('multipart/form-data') && contentLengthNum > INSTANT_RESPONSE_THRESHOLD) {
-    console.log('[Share Target Direct] Large upload detected, processing in background');
-    
-    // Create a pending record immediately
-    const pendingId = crypto.randomUUID();
-    const now = Date.now();
-    
-    await env.DB.prepare(`
-      INSERT INTO items (id, type, content, file_name, file_size, title, user_id, upload_status, created_at)
-      VALUES (?, 'file', '', 'Uploading...', ?, NULL, ?, 'uploading', ?)
-    `).bind(pendingId, contentLengthNum, userId, now).run();
-    
-    console.log('[Share Target Direct] Created pending record:', pendingId);
-    
-    // Process entire upload in background
-    ctx.waitUntil(processUploadInBackground(request, env, pendingId, userId, contentType));
-    
-    // Return immediately
-    return Response.redirect(new URL('/?shared=uploading', request.url).toString(), 303);
-  }
-  
-  // For small uploads or non-file content, process synchronously
-  // Read the raw body ONCE - this is the only read we'll do
+  // Read the raw body ONCE - this must happen before response is sent
+  // (HTTP protocol requires full body to be received before response)
   const rawBody = await request.arrayBuffer();
   console.log('[Share Target Direct] Raw body size:', rawBody.byteLength);
   
@@ -335,105 +310,6 @@ async function handleShareTarget(request: Request, env: Env, ctx: ExecutionConte
   }
   
   return Response.redirect(new URL('/?shared=error&reason=parse_failed', request.url).toString(), 303);
-}
-
-// Process large file upload entirely in background
-async function processUploadInBackground(
-  request: Request, 
-  env: Env, 
-  pendingId: string, 
-  _userId: string | null,
-  contentType: string
-): Promise<void> {
-  try {
-    console.log('[Background Upload] Starting for:', pendingId);
-    
-    const rawBody = await request.arrayBuffer();
-    console.log('[Background Upload] Body received, size:', rawBody.byteLength);
-    
-    // Try standard formData parsing first
-    let fileData: { name: string; type: string; data: ArrayBuffer } | null = null;
-    let title: string | null = null;
-    
-    try {
-      const freshRequest = new Request(request.url, {
-        method: 'POST',
-        headers: request.headers,
-        body: rawBody,
-      });
-      
-      const formData = await freshRequest.formData();
-      title = formData.get('title') as string || null;
-      
-      // Find file in formData
-      for (const [, value] of formData.entries()) {
-        if (value instanceof File && value.size > 0) {
-          fileData = {
-            name: value.name || 'unnamed',
-            type: value.type || 'application/octet-stream',
-            data: await value.arrayBuffer(),
-          };
-          break;
-        }
-      }
-    } catch (parseError) {
-      console.log('[Background Upload] Standard parsing failed, trying manual:', parseError);
-      
-      // Try manual parsing
-      const result = parseMultipartManually(rawBody, contentType);
-      if (result?.file) {
-        fileData = {
-          name: result.file.name,
-          type: result.file.type,
-          data: new Uint8Array(result.file.data).buffer as ArrayBuffer,
-        };
-        title = result.title || null;
-      }
-    }
-    
-    if (!fileData) {
-      console.error('[Background Upload] No file found, marking as failed');
-      await env.DB.prepare(`UPDATE items SET upload_status = 'failed', file_name = 'No file found' WHERE id = ?`).bind(pendingId).run();
-      return;
-    }
-    
-    console.log('[Background Upload] File extracted:', fileData.name, 'size:', fileData.data.byteLength);
-    
-    // Upload to R2
-    const sanitizedName = fileData.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
-    
-    await env.R2_BUCKET.put(fileKey, fileData.data, {
-      httpMetadata: {
-        contentType: fileData.type,
-      },
-    });
-    
-    console.log('[Background Upload] R2 upload complete');
-    
-    // Determine type
-    const type = fileData.type.startsWith('image/') ? 'image' 
-      : fileData.type.startsWith('video/') ? 'video' 
-      : 'file';
-    
-    // Update the pending record with actual data
-    await env.DB.prepare(`
-      UPDATE items SET 
-        type = ?,
-        file_key = ?,
-        file_name = ?,
-        file_size = ?,
-        mime_type = ?,
-        title = ?,
-        upload_status = NULL
-      WHERE id = ?
-    `).bind(type, fileKey, fileData.name, fileData.data.byteLength, fileData.type, title, pendingId).run();
-    
-    console.log('[Background Upload] Complete for:', pendingId);
-  } catch (error) {
-    console.error('[Background Upload] Failed:', error);
-    await env.DB.prepare(`UPDATE items SET upload_status = 'failed' WHERE id = ?`).bind(pendingId).run();
-  }
 }
 
 // Process parsed formData - redirect to share choice page
@@ -490,64 +366,43 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env,
     const id = crypto.randomUUID();
     const now = Date.now();
     
-    // Threshold for background upload (1MB)
-    const BACKGROUND_UPLOAD_THRESHOLD = 1 * 1024 * 1024;
-    
     try {
-      // Read file data once
+      // Read file data once (this is already in memory after network transfer)
       const arrayBuffer = await file.arrayBuffer();
       
-      if (file.size > BACKGROUND_UPLOAD_THRESHOLD) {
-        // Large file: create pending record and upload in background
-        console.log('[Share Target Direct] Large file detected, using background upload');
-        
-        // Create DB record with pending status first
-        await env.DB.prepare(`
-          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, upload_status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)
-        `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
-        
-        console.log('[Share Target Direct] DB record created with uploading status, id:', id);
-        
-        // Upload in background using waitUntil
-        ctx.waitUntil((async () => {
-          try {
-            await env.R2_BUCKET.put(fileKey, arrayBuffer, {
-              httpMetadata: {
-                contentType: file.type || 'application/octet-stream',
-              },
-            });
-            
-            // Update status to completed
-            await env.DB.prepare(`UPDATE items SET upload_status = NULL WHERE id = ?`).bind(id).run();
-            console.log('[Share Target Background] Upload completed for id:', id);
-          } catch (error) {
-            // Update status to failed
-            await env.DB.prepare(`UPDATE items SET upload_status = 'failed' WHERE id = ?`).bind(id).run();
-            console.error('[Share Target Background] Upload failed for id:', id, error);
-          }
-        })());
-        
-        // Return immediately with uploading status
-        return Response.redirect(new URL('/?shared=uploading', requestUrl).toString(), 303);
-      } else {
-        // Small file: upload synchronously (original behavior)
-        await env.R2_BUCKET.put(fileKey, arrayBuffer, {
-          httpMetadata: {
-            contentType: file.type || 'application/octet-stream',
-          },
-        });
-        
-        console.log('[Share Target Direct] File uploaded to R2, bytes:', arrayBuffer.byteLength);
-
-        await env.DB.prepare(`
-          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
-
-        console.log('[Share Target Direct] DB record created, id:', id, 'userId:', userId);
-        return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
-      }
+      // Always use background upload for files to minimize response time
+      // The file data is already in memory, only R2 upload is done in background
+      console.log('[Share Target Direct] Using background R2 upload');
+      
+      // Create DB record with uploading status first
+      await env.DB.prepare(`
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, upload_status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)
+      `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
+      
+      console.log('[Share Target Direct] DB record created with uploading status, id:', id);
+      
+      // Upload to R2 in background using waitUntil
+      ctx.waitUntil((async () => {
+        try {
+          await env.R2_BUCKET.put(fileKey, arrayBuffer, {
+            httpMetadata: {
+              contentType: file.type || 'application/octet-stream',
+            },
+          });
+          
+          // Update status to completed
+          await env.DB.prepare(`UPDATE items SET upload_status = NULL WHERE id = ?`).bind(id).run();
+          console.log('[Share Target Background] R2 upload completed for id:', id);
+        } catch (error) {
+          // Update status to failed
+          await env.DB.prepare(`UPDATE items SET upload_status = 'failed' WHERE id = ?`).bind(id).run();
+          console.error('[Share Target Background] R2 upload failed for id:', id, error);
+        }
+      })());
+      
+      // Return immediately - R2 upload continues in background
+      return Response.redirect(new URL('/?shared=uploading', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] File upload failed:', error);
       return Response.redirect(new URL('/?shared=error&reason=upload_failed', requestUrl).toString(), 303);
@@ -700,59 +555,39 @@ async function processShareData(data: ParsedMultipart, requestUrl: string, env: 
     const fileType = data.file.type;
     const fileSize = data.file.data.byteLength;
     
-    // Threshold for background upload (1MB)
-    const BACKGROUND_UPLOAD_THRESHOLD = 1 * 1024 * 1024;
-    
     try {
-      if (fileSize > BACKGROUND_UPLOAD_THRESHOLD) {
-        // Large file: create pending record and upload in background
-        console.log('[Share Target Direct] Manual parser: Large file detected, using background upload');
-        
-        // Create DB record with uploading status first
-        await env.DB.prepare(`
-          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, upload_status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)
-        `).bind(id, type, '', fileKey, originalName, fileSize, fileType, data.title || null, userId, now).run();
-        
-        console.log('[Share Target Direct] Manual parser: DB record created with uploading status, id:', id);
-        
-        // Upload in background using waitUntil
-        ctx.waitUntil((async () => {
-          try {
-            await env.R2_BUCKET.put(fileKey, fileData, {
-              httpMetadata: {
-                contentType: fileType,
-              },
-            });
-            
-            // Update status to completed
-            await env.DB.prepare(`UPDATE items SET upload_status = NULL WHERE id = ?`).bind(id).run();
-            console.log('[Share Target Background] Manual parser: Upload completed for id:', id);
-          } catch (error) {
-            // Update status to failed
-            await env.DB.prepare(`UPDATE items SET upload_status = 'failed' WHERE id = ?`).bind(id).run();
-            console.error('[Share Target Background] Manual parser: Upload failed for id:', id, error);
-          }
-        })());
-        
-        // Return immediately with uploading status
-        return Response.redirect(new URL('/?shared=uploading', requestUrl).toString(), 303);
-      } else {
-        // Small file: upload synchronously
-        await env.R2_BUCKET.put(fileKey, fileData, {
-          httpMetadata: {
-            contentType: fileType,
-          },
-        });
-
-        await env.DB.prepare(`
-          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, type, '', fileKey, originalName, fileSize, fileType, data.title || null, userId, now).run();
-
-        console.log('[Share Target Direct] Manual file upload succeeded, id:', id, 'userId:', userId);
-        return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
-      }
+      // Always use background upload for files
+      console.log('[Share Target Direct] Manual parser: Using background R2 upload');
+      
+      // Create DB record with uploading status first
+      await env.DB.prepare(`
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, upload_status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)
+      `).bind(id, type, '', fileKey, originalName, fileSize, fileType, data.title || null, userId, now).run();
+      
+      console.log('[Share Target Direct] Manual parser: DB record created with uploading status, id:', id);
+      
+      // Upload to R2 in background using waitUntil
+      ctx.waitUntil((async () => {
+        try {
+          await env.R2_BUCKET.put(fileKey, fileData, {
+            httpMetadata: {
+              contentType: fileType,
+            },
+          });
+          
+          // Update status to completed
+          await env.DB.prepare(`UPDATE items SET upload_status = NULL WHERE id = ?`).bind(id).run();
+          console.log('[Share Target Background] Manual parser: R2 upload completed for id:', id);
+        } catch (error) {
+          // Update status to failed
+          await env.DB.prepare(`UPDATE items SET upload_status = 'failed' WHERE id = ?`).bind(id).run();
+          console.error('[Share Target Background] Manual parser: R2 upload failed for id:', id, error);
+        }
+      })());
+      
+      // Return immediately - R2 upload continues in background
+      return Response.redirect(new URL('/?shared=uploading', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] Manual file upload failed:', error);
       return Response.redirect(new URL('/?shared=error&reason=upload_failed', requestUrl).toString(), 303);
