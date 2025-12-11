@@ -1,7 +1,7 @@
 // Service Worker for Self PWA
-// Version 13 - Fixed PWA reload loop bug
-const SW_VERSION = 13;
-const CACHE_NAME = 'self-v13';
+// Version 14 - Fixed PWA white screen bug completely
+const SW_VERSION = 14;
+const CACHE_NAME = 'self-v14';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -18,8 +18,7 @@ self.addEventListener('install', (event) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  // Force immediate activation
-  self.skipWaiting();
+  // Don't skipWaiting automatically - wait for user action or next page load
 });
 
 // Activate event
@@ -37,8 +36,7 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Take control of all clients immediately
-  self.clients.claim();
+  // Don't claim clients immediately - let them use the new SW on next navigation
 });
 
 // Fetch event handler

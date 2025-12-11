@@ -112,10 +112,9 @@
               if (newWorker) {
                 newWorker.addEventListener('statechange', () => {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New version available
-                    console.log('New SW version available');
-                    // Auto-activate new service worker
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    // New version available - UI will show update button
+                    console.log('New SW version available, update button will appear');
+                    // Don't auto-activate - let user decide via UI button
                   }
                 });
               }
@@ -148,32 +147,10 @@
           }
         });
         
-        // Refresh page when new SW takes over (but not on first install)
-        let refreshing = false;
-        const hadController = !!navigator.serviceWorker.controller;
+        // Log when new SW takes control (no auto-reload to prevent PWA issues)
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          // Don't reload on first SW install (when there was no controller before)
-          if (!hadController) {
-            console.log('First SW install, skipping reload');
-            return;
-          }
-          // Prevent reload loop using sessionStorage
-          const reloadKey = 'sw-reload-' + Date.now().toString().slice(0, -4); // ~10 second window
-          if (sessionStorage.getItem('sw-reloading')) {
-            console.log('Already reloading, skipping');
-            return;
-          }
-          if (!refreshing) {
-            refreshing = true;
-            sessionStorage.setItem('sw-reloading', 'true');
-            // Clear the flag after a short delay
-            setTimeout(() => sessionStorage.removeItem('sw-reloading'), 3000);
-            window.location.reload();
-          }
-        });
-        // Clear reload flag on successful page load
-        window.addEventListener('load', () => {
-          sessionStorage.removeItem('sw-reloading');
+          console.log('New service worker activated');
+          // Don't auto-reload - the app handles updates via the UI button
         });
       }
     </script>

@@ -188,11 +188,13 @@ const AuthenticatedContent: React.FC = () => {
   const applySwUpdate = useCallback(async () => {
     const registration = await navigator.serviceWorker.ready;
     if (registration.waiting) {
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      // Reload after new SW takes over
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
+      // Set up one-time listener before sending message
+      const reloadOnce = () => {
+        navigator.serviceWorker.removeEventListener('controllerchange', reloadOnce);
         window.location.reload();
-      });
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
     }
   }, []);
 
