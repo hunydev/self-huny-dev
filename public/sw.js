@@ -1,6 +1,6 @@
 // Service Worker for Self PWA
-// Version 9 - Share-target interception for instant response
-const CACHE_NAME = 'self-v9';
+// Version 10 - Robust share-target handling with fallback
+const CACHE_NAME = 'self-v10';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -63,7 +63,7 @@ async function deletePendingUpload(id) {
 
 // Install event
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing version 9');
+  console.log('[SW] Installing version 10');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
@@ -75,7 +75,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating version 9');
+  console.log('[SW] Activating version 10');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -96,6 +96,9 @@ self.addEventListener('activate', (event) => {
 async function handleShareTarget(request) {
   console.log('[SW] Processing share-target request');
   
+  // Clone request for potential fallback (body can only be read once)
+  const clonedRequest = request.clone();
+  
   try {
     const formData = await request.formData();
     
@@ -105,26 +108,41 @@ async function handleShareTarget(request) {
     
     // Collect files
     const files = [];
+    let totalSize = 0;
     for (const [key, value] of formData.entries()) {
       if (value instanceof File && value.size > 0) {
-        // Read file as ArrayBuffer for storage
-        const arrayBuffer = await value.arrayBuffer();
-        files.push({
-          name: value.name,
-          type: value.type,
-          size: value.size,
-          data: arrayBuffer,
-        });
+        totalSize += value.size;
+        files.push(value);
         console.log('[SW] Found file:', value.name, 'size:', value.size);
       }
     }
     
+    // If files are too large (>50MB total), skip SW processing and let server handle
+    // IndexedDB has storage limits and large files can cause issues
+    const MAX_SW_SIZE = 50 * 1024 * 1024; // 50MB
+    if (totalSize > MAX_SW_SIZE) {
+      console.log('[SW] Files too large for SW processing, forwarding to server');
+      return fetch(clonedRequest);
+    }
+    
     // If there are files, save to IndexedDB and let main app handle upload
     if (files.length > 0) {
+      const filesData = [];
+      for (const file of files) {
+        // Read file as ArrayBuffer for storage
+        const arrayBuffer = await file.arrayBuffer();
+        filesData.push({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          data: arrayBuffer,
+        });
+      }
+      
       const uploadId = crypto.randomUUID();
       const pendingUpload = {
         id: uploadId,
-        files,
+        files: filesData,
         title,
         timestamp: Date.now(),
       };
@@ -150,8 +168,14 @@ async function handleShareTarget(request) {
     return Response.redirect('/', 303);
   } catch (error) {
     console.error('[SW] Error handling share-target:', error);
-    // Fall through to server on error
-    return fetch(request);
+    // Try to fallback to server with cloned request
+    try {
+      return await fetch(clonedRequest);
+    } catch (fetchError) {
+      console.error('[SW] Fallback fetch also failed:', fetchError);
+      // Last resort: redirect to home with error
+      return Response.redirect('/?shared=error&reason=sw_error', 303);
+    }
   }
 }
 
