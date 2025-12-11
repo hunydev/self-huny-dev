@@ -54,8 +54,8 @@ app.delete('/api/user', authMiddleware, async (c) => {
     const user = c.get('user') as any;
     const userId = user.sub;
 
-    // Get all file keys to delete from R2 (including legacy items with no owner)
-    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND (user_id = ? OR user_id IS NULL)').bind(userId).all();
+    // Get all file keys to delete from R2
+    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND user_id = ?').bind(userId).all();
     
     // Delete all files from R2
     for (const item of items || []) {
@@ -68,10 +68,10 @@ app.delete('/api/user', authMiddleware, async (c) => {
       }
     }
 
-    // Delete all data for the user (including legacy data with no owner)
-    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ? OR user_id IS NULL)').bind(userId).run();
-    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ? OR user_id IS NULL').bind(userId).run();
-    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ? OR user_id IS NULL').bind(userId).run();
+    // Delete all data for the user
+    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ?').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ?').bind(userId).run();
 
     return c.json({ success: true });
   } catch (error) {
