@@ -3,6 +3,7 @@ import { Menu, CheckCircle, XCircle, Clock, WifiOff, Search, X, RefreshCw, Arrow
 import Sidebar from './components/Sidebar';
 import InputArea, { InputAreaHandle } from './components/InputArea';
 import Feed from './components/Feed';
+import ScheduledView from './components/ScheduledView';
 import ItemModal from './components/ItemModal';
 import SettingsModal from './components/SettingsModal';
 import LoginScreen from './components/LoginScreen';
@@ -512,6 +513,10 @@ const AuthenticatedContent: React.FC = () => {
       }
 
       setItems(prev => [newItem, ...prev]);
+      // 리마인더가 있으면 scheduledItems도 업데이트
+      if (newItem.reminderAt) {
+        setScheduledItems(prev => [...prev, newItem].sort((a, b) => (a.reminderAt || 0) - (b.reminderAt || 0)));
+      }
       showToast('아이템이 추가되었습니다', 'success');
     } catch (err) {
       console.error("Failed to save item", err);
@@ -1049,9 +1054,9 @@ const AuthenticatedContent: React.FC = () => {
           <UserMenu />
         </div>
 
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth">
-          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash view) */}
-          {activeFilter !== 'trash' && (
+        <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto scroll-smooth ${activeFilter === 'scheduled' ? 'flex flex-col' : ''}`}>
+          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash and scheduled view) */}
+          {activeFilter !== 'trash' && activeFilter !== 'scheduled' && (
             <div className="sticky top-0 z-20 px-4 lg:px-8 pt-4 lg:pt-6 pb-4">
               <div className="max-w-3xl mx-auto w-full">
                 <div className="shadow-lg shadow-slate-900/10 rounded-xl">
@@ -1069,9 +1074,9 @@ const AuthenticatedContent: React.FC = () => {
             </div>
           )}
 
-          <div className="max-w-7xl mx-auto">
+          <div className={`${activeFilter === 'scheduled' ? 'flex-1 flex flex-col' : 'max-w-7xl mx-auto'}`}>
             {/* Active filter indicator */}
-            {(activeTagFilter || searchQuery) && (
+            {(activeTagFilter || searchQuery) && activeFilter !== 'scheduled' && (
               <div className="px-4 lg:px-8 pb-2">
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   {searchQuery && (
@@ -1099,19 +1104,29 @@ const AuthenticatedContent: React.FC = () => {
             )}
 
             {/* Feed Section */}
-            <div className="px-4 lg:px-8 pb-4 lg:pb-8">
-              <Feed 
-                items={filteredItems} 
-                tags={tags} 
-                onDelete={handleDeleteItem}
-                onItemClick={setSelectedItem}
-                onToggleFavorite={handleToggleFavorite}
-                onToggleEncryption={handleOpenEncryptionModal}
-                isTrashView={activeFilter === 'trash'}
-                onRestore={handleRestoreItem}
-                onPermanentDelete={handlePermanentDelete}
-                onEmptyTrash={handleEmptyTrash}
-              />
+            <div className={`${activeFilter === 'scheduled' ? 'flex-1 min-h-0' : ''} px-4 lg:px-8 pb-4 lg:pb-8`}>
+              {activeFilter === 'scheduled' ? (
+                <div className="h-full">
+                  <ScheduledView
+                    items={scheduledItems}
+                    tags={tags}
+                    onItemClick={setSelectedItem}
+                  />
+                </div>
+              ) : (
+                <Feed 
+                  items={filteredItems} 
+                  tags={tags} 
+                  onDelete={handleDeleteItem}
+                  onItemClick={setSelectedItem}
+                  onToggleFavorite={handleToggleFavorite}
+                  onToggleEncryption={handleOpenEncryptionModal}
+                  isTrashView={activeFilter === 'trash'}
+                  onRestore={handleRestoreItem}
+                  onPermanentDelete={handlePermanentDelete}
+                  onEmptyTrash={handleEmptyTrash}
+                />
+              )}
             </div>
           </div>
         </div>

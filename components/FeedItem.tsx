@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Music, Pause, Code, RotateCcw } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Pause, Code, RotateCcw, Bell } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -550,6 +550,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
           <p className="text-sm text-slate-800 truncate font-medium">{getDisplayText()}</p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] text-slate-400">{formattedDate}</span>
+            {item.reminderAt && (
+              <span className="flex items-center text-blue-500" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                <Bell size={10} fill="currentColor" />
+              </span>
+            )}
             {itemTags.length > 0 && (
               <div className="flex gap-1">
                 {itemTags.slice(0, 2).map(tag => (
@@ -632,6 +637,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-medium">{formattedDate}</span>
+          {item.reminderAt && (
+            <span className="flex items-center gap-0.5 text-blue-500" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+              <Bell size={12} fill="currentColor" />
+            </span>
+          )}
         </div>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
