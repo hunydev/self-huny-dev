@@ -195,7 +195,7 @@ const STORAGE_KEYS = {
   USER: 'auth_user',
 };
 
-// Save auth data to localStorage
+// Save auth data to localStorage and cookie (for PWA share target)
 export function saveAuthData(data: {
   accessToken: string;
   user: User;
@@ -210,6 +210,9 @@ export function saveAuthData(data: {
   if (data.expiresAt) {
     localStorage.setItem(STORAGE_KEYS.EXPIRES_AT, String(data.expiresAt));
   }
+  // Also save token to cookie for PWA share target (which can't access localStorage)
+  const maxAge = data.expiresAt ? Math.floor((data.expiresAt - Date.now()) / 1000) : 86400 * 30;
+  document.cookie = `auth_token=${data.accessToken}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
 }
 
 // Load auth data from localStorage
@@ -232,12 +235,14 @@ export function loadAuthData(): {
   };
 }
 
-// Clear auth data from localStorage
+// Clear auth data from localStorage and cookie
 export function clearAuthData(): void {
   localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.EXPIRES_AT);
   localStorage.removeItem(STORAGE_KEYS.USER);
+  // Also clear auth cookie
+  document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Strict; Secure';
 }
 
 // Check if token needs refresh

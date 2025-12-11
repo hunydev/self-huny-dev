@@ -7,7 +7,7 @@ import { shareRoutes } from './routes/share';
 import { ogRoutes, parseOgMetadata } from './routes/og';
 import { geminiRoutes } from './routes/gemini';
 import { uploadFileToR2 } from './utils/uploadFile';
-import { authMiddleware, optionalAuthMiddleware, getOptionalUser, AuthUser } from './middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, getOptionalUser, AuthUser, verifyTokenFromCookie } from './middleware/auth';
 
 export interface Env {
   DB: D1Database;
@@ -264,6 +264,12 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
   console.log('[Share Target Direct] Content-Type:', contentType);
   console.log('[Share Target Direct] Content-Length:', contentLength);
   
+  // Get user from cookie for authentication
+  const cookieHeader = request.headers.get('cookie');
+  const user = await verifyTokenFromCookie(cookieHeader);
+  const userId = user?.sub || null;
+  console.log('[Share Target Direct] User ID from cookie:', userId);
+  
   // Read the raw body ONCE - this is the only read we'll do
   const rawBody = await request.arrayBuffer();
   console.log('[Share Target Direct] Raw body size:', rawBody.byteLength);
@@ -279,7 +285,7 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
     
     const formData = await freshRequest.formData();
     console.log('[Share Target Direct] FormData parsed successfully');
-    return await processFormData(formData, request.url, env);
+    return await processFormData(formData, request.url, env, userId);
   } catch (parseError) {
     console.error('[Share Target Direct] Standard formData parsing failed:', parseError);
   }
@@ -295,7 +301,7 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
         hasUrl: !!result.url,
         hasTitle: !!result.title,
       });
-      return await processShareData(result, request.url, env);
+      return await processShareData(result, request.url, env, userId);
     }
     console.log('[Share Target Direct] Manual parsing returned no useful data');
   } catch (manualError) {
@@ -306,7 +312,7 @@ async function handleShareTarget(request: Request, env: Env): Promise<Response> 
 }
 
 // Process parsed formData - redirect to share choice page
-async function processFormData(formData: FormData, requestUrl: string, env: Env): Promise<Response> {
+async function processFormData(formData: FormData, requestUrl: string, env: Env, userId: string | null): Promise<Response> {
   const title = formData.get('title') as string;
   const text = formData.get('text') as string;
   const urlParam = formData.get('url') as string;
@@ -333,6 +339,7 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env)
     url: urlParam,
     formDataEntries,
     filesCount: allFiles.length,
+    userId,
   });
 
   // Handle file uploads - files go directly to storage (no choice for files)
@@ -370,11 +377,11 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env)
       const now = Date.now();
 
       await env.DB.prepare(`
-        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, now).run();
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
 
-      console.log('[Share Target Direct] DB record created, id:', id);
+      console.log('[Share Target Direct] DB record created, id:', id, 'userId:', userId);
       return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] File upload failed:', error);
@@ -511,7 +518,7 @@ function parseMultipartManually(body: ArrayBuffer, contentType: string): ParsedM
 }
 
 // Process manually parsed data
-async function processShareData(data: ParsedMultipart, requestUrl: string, env: Env): Promise<Response> {
+async function processShareData(data: ParsedMultipart, requestUrl: string, env: Env, userId: string | null): Promise<Response> {
   // Handle file if present
   if (data.file && data.file.data.byteLength > 0) {
     const originalName = data.file.name || 'unnamed';
@@ -533,10 +540,11 @@ async function processShareData(data: ParsedMultipart, requestUrl: string, env: 
       const now = Date.now();
 
       await env.DB.prepare(`
-        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(id, type, '', fileKey, originalName, data.file.data.byteLength, data.file.type, data.title || null, now).run();
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, type, '', fileKey, originalName, data.file.data.byteLength, data.file.type, data.title || null, userId, now).run();
 
+      console.log('[Share Target Direct] Manual file upload succeeded, id:', id, 'userId:', userId);
       return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] Manual file upload failed:', error);
@@ -581,10 +589,11 @@ async function processShareData(data: ParsedMultipart, requestUrl: string, env: 
     }
     
     await env.DB.prepare(`
-      INSERT INTO items (id, type, content, title, og_image, og_title, og_description, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, type, content, data.title || null, ogImage, ogTitle, ogDescription, now).run();
+      INSERT INTO items (id, type, content, title, og_image, og_title, og_description, user_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, type, content, data.title || null, ogImage, ogTitle, ogDescription, userId, now).run();
 
+    console.log('[Share Target Direct] Manual text/link saved, id:', id, 'userId:', userId);
     return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
   }
 

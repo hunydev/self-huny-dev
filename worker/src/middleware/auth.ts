@@ -87,3 +87,27 @@ export function getUser(c: Context<{ Bindings: Env; Variables: Variables }>): Au
 export function getOptionalUser(c: Context<{ Bindings: Env; Variables: Variables }>): AuthUser | undefined {
   return c.get('user') as AuthUser | undefined;
 }
+
+// Extract token from cookie
+function extractTokenFromCookie(cookieHeader: string | null | undefined): string | null {
+  if (!cookieHeader) {
+    return null;
+  }
+  const cookies = cookieHeader.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'auth_token' && value) {
+      return value;
+    }
+  }
+  return null;
+}
+
+// Verify token from cookie (for share target)
+export async function verifyTokenFromCookie(cookieHeader: string | null | undefined): Promise<AuthUser | null> {
+  const token = extractTokenFromCookie(cookieHeader);
+  if (!token) {
+    return null;
+  }
+  return await verifyToken(token);
+}
