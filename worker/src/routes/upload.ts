@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
+import { authMiddleware } from '../middleware/auth';
 
-export const uploadRoutes = new Hono<{ Bindings: Env }>();
+export const uploadRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Upload file to R2
-uploadRoutes.post('/', async (c) => {
+// Upload file to R2 - requires authentication
+uploadRoutes.post('/', authMiddleware, async (c) => {
   try {
     const formData = await c.req.formData();
     const file = formData.get('file') as File;
@@ -35,7 +36,7 @@ uploadRoutes.post('/', async (c) => {
   }
 });
 
-// Get file from R2
+// Get file from R2 - public access (no auth required)
 uploadRoutes.get('/:key', async (c) => {
   const key = c.req.param('key');
 

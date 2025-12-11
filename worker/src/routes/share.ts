@@ -1,12 +1,17 @@
 import { Hono } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
 import { uploadFileToR2 } from '../utils/uploadFile';
+import { getOptionalUser } from '../middleware/auth';
 
-export const shareRoutes = new Hono<{ Bindings: Env }>();
+export const shareRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Handle Web Share Target API (POST from share intent)
 shareRoutes.post('/', async (c) => {
   try {
+    // Get optional user (may be undefined if not authenticated)
+    const user = getOptionalUser(c);
+    const userId = user?.sub || null;
+    
     const contentType = c.req.header('content-type') || '';
     
     let title: string | null = null;
@@ -79,11 +84,11 @@ shareRoutes.post('/', async (c) => {
           const now = Date.now();
 
           await c.env.DB.prepare(`
-            INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(id, type, '', fileKey, file.name?.trim() || 'unnamed', file.size, file.type || 'application/octet-stream', title || null, now).run();
+            INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(id, type, '', fileKey, file.name?.trim() || 'unnamed', file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
 
-          console.log('[API Share] DB record created, id:', id);
+          console.log('[API Share] DB record created, id:', id, 'userId:', userId);
 
           uploadedItems.push({
             id,
@@ -117,9 +122,9 @@ shareRoutes.post('/', async (c) => {
     const now = Date.now();
 
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, title, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(id, type, content, title || null, now).run();
+      INSERT INTO items (id, type, content, title, user_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(id, type, content, title || null, userId, now).run();
 
     return c.json({
       success: true,

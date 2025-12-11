@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
 
 const AUTH_SERVER = 'https://auth.huny.dev';
 
@@ -43,7 +43,7 @@ function extractToken(authHeader: string | undefined): string | null {
 }
 
 // Auth middleware - verifies token and attaches user to context
-export async function authMiddleware(c: Context<{ Bindings: Env }>, next: () => Promise<void>) {
+export async function authMiddleware(c: Context<{ Bindings: Env; Variables: Variables }>, next: () => Promise<void>) {
   const authHeader = c.req.header('Authorization');
   const token = extractToken(authHeader);
 
@@ -63,7 +63,27 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: () => 
   await next();
 }
 
+// Optional auth middleware - attaches user if token is valid, but doesn't require it
+export async function optionalAuthMiddleware(c: Context<{ Bindings: Env; Variables: Variables }>, next: () => Promise<void>) {
+  const authHeader = c.req.header('Authorization');
+  const token = extractToken(authHeader);
+
+  if (token) {
+    const user = await verifyToken(token);
+    if (user) {
+      c.set('user', user);
+    }
+  }
+
+  await next();
+}
+
 // Helper to get user from context
-export function getUser(c: Context): AuthUser {
+export function getUser(c: Context<{ Bindings: Env; Variables: Variables }>): AuthUser {
   return c.get('user') as AuthUser;
+}
+
+// Helper to get optional user from context (may be undefined)
+export function getOptionalUser(c: Context<{ Bindings: Env; Variables: Variables }>): AuthUser | undefined {
+  return c.get('user') as AuthUser | undefined;
 }

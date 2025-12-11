@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
 import { parseOgMetadata } from './og';
 import { getUser } from '../middleware/auth';
 
-export const itemsRoutes = new Hono<{ Bindings: Env }>();
+export const itemsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Get user stats - MUST be before /:id route
 itemsRoutes.get('/stats', async (c) => {
@@ -11,16 +11,16 @@ itemsRoutes.get('/stats', async (c) => {
     const user = getUser(c);
     const userId = user.sub;
 
-    // Get total items count for user
-    const itemCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM items WHERE user_id = ?').bind(userId).first();
+    // Get total items count for user (including legacy items with no owner)
+    const itemCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM items WHERE user_id = ? OR user_id IS NULL').bind(userId).first();
     const totalItems = (itemCountResult?.count as number) || 0;
 
-    // Get total tags count for user
-    const tagCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tags WHERE user_id = ?').bind(userId).first();
+    // Get total tags count for user (including legacy tags with no owner)
+    const tagCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tags WHERE user_id = ? OR user_id IS NULL').bind(userId).first();
     const totalTags = (tagCountResult?.count as number) || 0;
 
-    // Get total file size for user
-    const fileSizeResult = await c.env.DB.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM items WHERE file_size IS NOT NULL AND user_id = ?').bind(userId).first();
+    // Get total file size for user (including legacy items with no owner)
+    const fileSizeResult = await c.env.DB.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM items WHERE file_size IS NOT NULL AND (user_id = ? OR user_id IS NULL)').bind(userId).first();
     const totalFileSize = (fileSizeResult?.total as number) || 0;
 
     return c.json({
@@ -40,8 +40,8 @@ itemsRoutes.delete('/delete-all', async (c) => {
     const user = getUser(c);
     const userId = user.sub;
 
-    // Get all file keys to delete from R2 for this user
-    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND user_id = ?').bind(userId).all();
+    // Get all file keys to delete from R2 for this user (including legacy items with no owner)
+    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND (user_id = ? OR user_id IS NULL)').bind(userId).all();
     
     // Delete all files from R2
     for (const item of items || []) {
@@ -54,10 +54,10 @@ itemsRoutes.delete('/delete-all', async (c) => {
       }
     }
 
-    // Delete all item_tags, items, and tags for this user
-    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)').bind(userId).run();
-    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ?').bind(userId).run();
-    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ?').bind(userId).run();
+    // Delete all item_tags, items, and tags for this user (including legacy data with no owner)
+    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ? OR user_id IS NULL)').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ? OR user_id IS NULL').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ? OR user_id IS NULL').bind(userId).run();
 
     return c.json({ success: true });
   } catch (error) {
@@ -86,7 +86,8 @@ itemsRoutes.get('/', async (c) => {
       LEFT JOIN item_tags it ON i.id = it.item_id
     `;
     const params: any[] = [];
-    const conditions: string[] = ['i.user_id = ?'];
+    // Include items owned by this user OR items with no owner (legacy data)
+    const conditions: string[] = ['(i.user_id = ? OR i.user_id IS NULL)'];
     params.push(userId);
 
     if (type && type !== 'all') {
@@ -160,7 +161,7 @@ itemsRoutes.get('/:id', async (c) => {
         GROUP_CONCAT(it.tag_id) as tag_ids
       FROM items i
       LEFT JOIN item_tags it ON i.id = it.item_id
-      WHERE i.id = ? AND i.user_id = ?
+      WHERE i.id = ? AND (i.user_id = ? OR i.user_id IS NULL)
       GROUP BY i.id
     `).bind(id, userId).first();
 
@@ -319,7 +320,7 @@ itemsRoutes.put('/:id', async (c) => {
 
     // 암호화 해제 시 기존 비밀번호 검증
     if (isEncrypted === false) {
-      const existingItem = await c.env.DB.prepare('SELECT is_encrypted, encryption_hash FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
+      const existingItem = await c.env.DB.prepare('SELECT is_encrypted, encryption_hash FROM items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').bind(id, userId).first();
       if (!existingItem) {
         return c.json({ error: 'Item not found' }, 404);
       }
@@ -337,7 +338,7 @@ itemsRoutes.put('/:id', async (c) => {
     // Title is required for encrypted items
     if (isEncrypted && !title) {
       // Check if item already has a title
-      const existingItem = await c.env.DB.prepare('SELECT title FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
+      const existingItem = await c.env.DB.prepare('SELECT title FROM items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').bind(id, userId).first();
       if (!existingItem) {
         return c.json({ error: 'Item not found' }, 404);
       }
@@ -382,7 +383,7 @@ itemsRoutes.put('/:id', async (c) => {
     
     if (updates.length > 0) {
       params.push(id, userId);
-      await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`)
+      await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ? AND (user_id = ? OR user_id IS NULL)`)
         .bind(...params)
         .run();
     }
@@ -419,7 +420,7 @@ itemsRoutes.delete('/:id', async (c) => {
     const userId = user.sub;
 
     // Get item to check for file (and verify ownership)
-    const item = await c.env.DB.prepare('SELECT file_key FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
+    const item = await c.env.DB.prepare('SELECT file_key FROM items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').bind(id, userId).first();
     
     if (!item) {
       return c.json({ error: 'Item not found' }, 404);
@@ -431,7 +432,7 @@ itemsRoutes.delete('/:id', async (c) => {
     }
 
     // Delete item (item_tags will cascade)
-    await c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(id, userId).run();
+    await c.env.DB.prepare('DELETE FROM items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').bind(id, userId).run();
 
     return c.json({ success: true });
   } catch (error) {
@@ -455,7 +456,7 @@ itemsRoutes.post('/:id/verify', async (c) => {
       return c.json({ error: '암호화 키가 필요합니다.' }, 400);
     }
 
-    const item = await c.env.DB.prepare('SELECT encryption_hash FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
+    const item = await c.env.DB.prepare('SELECT encryption_hash FROM items WHERE id = ? AND (user_id = ? OR user_id IS NULL)').bind(id, userId).first();
 
     if (!item) {
       return c.json({ error: 'Item not found' }, 404);
@@ -490,7 +491,7 @@ itemsRoutes.post('/:id/unlock', async (c) => {
         GROUP_CONCAT(it.tag_id) as tag_ids
       FROM items i
       LEFT JOIN item_tags it ON i.id = it.item_id
-      WHERE i.id = ? AND i.user_id = ?
+      WHERE i.id = ? AND (i.user_id = ? OR i.user_id IS NULL)
       GROUP BY i.id
     `).bind(id, userId).first();
 

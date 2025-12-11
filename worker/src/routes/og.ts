@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
 
-export const ogRoutes = new Hono<{ Bindings: Env }>();
+export const ogRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 interface OgMetadata {
   ogImage?: string;

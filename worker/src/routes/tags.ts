@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
 import { getUser } from '../middleware/auth';
 
-export const tagsRoutes = new Hono<{ Bindings: Env }>();
+export const tagsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Get all tags
 tagsRoutes.get('/', async (c) => {
@@ -14,8 +14,8 @@ tagsRoutes.get('/', async (c) => {
       SELECT t.*, COUNT(it.item_id) as item_count
       FROM tags t
       LEFT JOIN item_tags it ON t.id = it.tag_id
-      LEFT JOIN items i ON it.item_id = i.id AND i.user_id = ?
-      WHERE t.user_id = ?
+      LEFT JOIN items i ON it.item_id = i.id AND (i.user_id = ? OR i.user_id IS NULL)
+      WHERE t.user_id = ? OR t.user_id IS NULL
       GROUP BY t.id
       ORDER BY t.name ASC
     `).bind(userId, userId).all();
@@ -90,7 +90,7 @@ tagsRoutes.put('/:id', async (c) => {
       : null;
 
     await c.env.DB.prepare(`
-      UPDATE tags SET name = ?, color = ?, auto_keywords = ? WHERE id = ? AND user_id = ?
+      UPDATE tags SET name = ?, color = ?, auto_keywords = ? WHERE id = ? AND (user_id = ? OR user_id IS NULL)
     `).bind(name.trim(), color || null, autoKeywordsJson, id, userId).run();
 
     return c.json({ success: true, name: name.trim(), autoKeywords: autoKeywords || [] });
@@ -112,7 +112,7 @@ tagsRoutes.delete('/:id', async (c) => {
     const userId = user.sub;
 
     // Delete tag (item_tags will cascade)
-    await c.env.DB.prepare('DELETE FROM tags WHERE id = ? AND user_id = ?').bind(id, userId).run();
+    await c.env.DB.prepare('DELETE FROM tags WHERE id = ? AND (user_id = ? OR user_id IS NULL)').bind(id, userId).run();
     return c.json({ success: true });
   } catch (error) {
     console.error('Error deleting tag:', error);

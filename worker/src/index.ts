@@ -7,7 +7,7 @@ import { shareRoutes } from './routes/share';
 import { ogRoutes, parseOgMetadata } from './routes/og';
 import { geminiRoutes } from './routes/gemini';
 import { uploadFileToR2 } from './utils/uploadFile';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, getOptionalUser, AuthUser } from './middleware/auth';
 
 export interface Env {
   DB: D1Database;
@@ -17,7 +17,12 @@ export interface Env {
   GEMINI_API_KEY: SecretsStoreSecret;
 }
 
-const app = new Hono<{ Bindings: Env }>();
+// Define Variables type for Hono context
+export type Variables = {
+  user?: AuthUser;
+};
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // CORS middleware
 app.use('/api/*', cors({
@@ -29,9 +34,11 @@ app.use('/api/*', cors({
 // Auth middleware for protected routes
 app.use('/api/items/*', authMiddleware);
 app.use('/api/tags/*', authMiddleware);
-app.use('/api/upload/*', authMiddleware);
+// Note: /api/upload has its own auth handling - POST requires auth, GET doesn't
 app.use('/api/user/*', authMiddleware);
 app.use('/api/gemini/*', authMiddleware);
+// Share routes use optional auth - authenticated users get user_id, anonymous works too
+app.use('/api/share/*', optionalAuthMiddleware);
 
 // API routes
 app.route('/api/items', itemsRoutes);
@@ -47,8 +54,8 @@ app.delete('/api/user', authMiddleware, async (c) => {
     const user = c.get('user') as any;
     const userId = user.sub;
 
-    // Get all file keys to delete from R2
-    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND user_id = ?').bind(userId).all();
+    // Get all file keys to delete from R2 (including legacy items with no owner)
+    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND (user_id = ? OR user_id IS NULL)').bind(userId).all();
     
     // Delete all files from R2
     for (const item of items || []) {
@@ -61,10 +68,10 @@ app.delete('/api/user', authMiddleware, async (c) => {
       }
     }
 
-    // Delete all data for the user
-    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)').bind(userId).run();
-    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ?').bind(userId).run();
-    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ?').bind(userId).run();
+    // Delete all data for the user (including legacy data with no owner)
+    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ? OR user_id IS NULL)').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ? OR user_id IS NULL').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ? OR user_id IS NULL').bind(userId).run();
 
     return c.json({ success: true });
   } catch (error) {
@@ -73,9 +80,14 @@ app.delete('/api/user', authMiddleware, async (c) => {
   }
 });
 
-// PWA Share Target - handles POST from share intent
-app.post('/share-target', async (c) => {
+// PWA Share Target - handles POST from share intent (with optional auth)
+app.post('/share-target', optionalAuthMiddleware, async (c) => {
   console.log('[Share Target] Received request');
+  
+  // Get optional user
+  const user = getOptionalUser(c);
+  const userId = user?.sub || null;
+  console.log('[Share Target] User ID:', userId);
   console.log('[Share Target] Content-Type:', c.req.header('content-type'));
   
   let formData: FormData;
@@ -160,11 +172,11 @@ app.post('/share-target', async (c) => {
         const now = Date.now();
 
         await c.env.DB.prepare(`
-          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, now).run();
+          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
 
-        console.log('[Share Target] DB record created, id:', id);
+        console.log('[Share Target] DB record created, id:', id, 'userId:', userId);
         return c.redirect('/?shared=success');
       } catch (error) {
         console.error('[Share Target] File upload failed:', error);
@@ -186,11 +198,11 @@ app.post('/share-target', async (c) => {
       const now = Date.now();
       
       await c.env.DB.prepare(`
-        INSERT INTO items (id, type, content, title, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).bind(id, type, content, title || null, now).run();
+        INSERT INTO items (id, type, content, title, user_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(id, type, content, title || null, userId, now).run();
 
-      console.log('[Share Target] Text/link saved, id:', id);
+      console.log('[Share Target] Text/link saved, id:', id, 'userId:', userId);
       return c.redirect('/?shared=success');
     } catch (error) {
       console.error('[Share Target] Text/link save failed:', error);
