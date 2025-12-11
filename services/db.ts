@@ -36,6 +36,23 @@ interface UploadResult {
   mimeType: string;
 }
 
+// Get auth token from localStorage
+const getAuthToken = (): string | null => {
+  return localStorage.getItem('auth_token');
+};
+
+// Create headers with Authorization
+const getAuthHeaders = (): HeadersInit => {
+  const token = getAuthToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 // Transform API response to frontend Item format
 const transformItem = (apiItem: ApiItem): Item => ({
   id: apiItem.id,
@@ -85,7 +102,9 @@ export const getItems = async (type?: ItemType | 'all', encrypted?: boolean): Pr
   }
 
   const url = `${API_BASE}/items${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: getAuthHeaders(),
+  });
   
   if (!response.ok) {
     throw new Error('Failed to fetch items');
@@ -97,7 +116,9 @@ export const getItems = async (type?: ItemType | 'all', encrypted?: boolean): Pr
 
 // Get single item by ID
 export const getItem = async (id: string): Promise<Item> => {
-  const response = await fetch(`${API_BASE}/items/${id}`);
+  const response = await fetch(`${API_BASE}/items/${id}`, {
+    headers: getAuthHeaders(),
+  });
   
   if (!response.ok) {
     throw new Error('Failed to fetch item');
@@ -151,6 +172,13 @@ const uploadFileWithProgress = (
     });
 
     xhr.open('POST', `${API_BASE}/upload`);
+    
+    // Add Authorization header
+    const token = getAuthToken();
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    
     xhr.send(formData);
   });
 };
@@ -188,9 +216,7 @@ export const saveItem = async (
   // Create item
   const response = await fetch(`${API_BASE}/items`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       type: item.type,
       content: item.content,
@@ -220,6 +246,7 @@ export const saveItem = async (
 export const deleteItem = async (id: string): Promise<void> => {
   const response = await fetch(`${API_BASE}/items/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
@@ -229,7 +256,9 @@ export const deleteItem = async (id: string): Promise<void> => {
 
 // Get all tags
 export const getTags = async (): Promise<Tag[]> => {
-  const response = await fetch(`${API_BASE}/tags`);
+  const response = await fetch(`${API_BASE}/tags`, {
+    headers: getAuthHeaders(),
+  });
   
   if (!response.ok) {
     throw new Error('Failed to fetch tags');
@@ -243,9 +272,7 @@ export const getTags = async (): Promise<Tag[]> => {
 export const saveTag = async (tag: Tag): Promise<Tag> => {
   const response = await fetch(`${API_BASE}/tags`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       name: tag.name,
       color: tag.color,
@@ -265,9 +292,7 @@ export const saveTag = async (tag: Tag): Promise<Tag> => {
 export const updateTag = async (tag: Tag): Promise<Tag> => {
   const response = await fetch(`${API_BASE}/tags/${tag.id}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       name: tag.name,
       color: tag.color,
@@ -286,6 +311,7 @@ export const updateTag = async (tag: Tag): Promise<Tag> => {
 export const deleteTag = async (id: string): Promise<void> => {
   const response = await fetch(`${API_BASE}/tags/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
@@ -297,9 +323,7 @@ export const deleteTag = async (id: string): Promise<void> => {
 export const updateItemTags = async (itemId: string, tagIds: string[]): Promise<void> => {
   const response = await fetch(`${API_BASE}/items/${itemId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       tags: tagIds,
     }),
@@ -314,9 +338,7 @@ export const updateItemTags = async (itemId: string, tagIds: string[]): Promise<
 export const toggleFavorite = async (itemId: string, isFavorite: boolean): Promise<void> => {
   const response = await fetch(`${API_BASE}/items/${itemId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       isFavorite,
     }),
@@ -338,9 +360,7 @@ export const verifyEncryptionKey = async (itemId: string, key: string): Promise<
   
   const response = await fetch(`${API_BASE}/items/${itemId}/verify`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ keyHash }),
   });
 
@@ -358,9 +378,7 @@ export const unlockItem = async (itemId: string, key: string): Promise<Item> => 
   
   const response = await fetch(`${API_BASE}/items/${itemId}/unlock`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ keyHash }),
   });
 
@@ -394,9 +412,7 @@ export const toggleEncryption = async (
   
   const response = await fetch(`${API_BASE}/items/${itemId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify(body),
   });
 
@@ -410,9 +426,7 @@ export const toggleEncryption = async (
 export const updateItemTitle = async (itemId: string, title: string): Promise<void> => {
   const response = await fetch(`${API_BASE}/items/${itemId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ title }),
   });
 

@@ -7,6 +7,7 @@ import { shareRoutes } from './routes/share';
 import { ogRoutes, parseOgMetadata } from './routes/og';
 import { geminiRoutes } from './routes/gemini';
 import { uploadFileToR2 } from './utils/uploadFile';
+import { authMiddleware } from './middleware/auth';
 
 export interface Env {
   DB: D1Database;
@@ -25,6 +26,13 @@ app.use('/api/*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
+// Auth middleware for protected routes
+app.use('/api/items/*', authMiddleware);
+app.use('/api/tags/*', authMiddleware);
+app.use('/api/upload/*', authMiddleware);
+app.use('/api/user/*', authMiddleware);
+app.use('/api/gemini/*', authMiddleware);
+
 // API routes
 app.route('/api/items', itemsRoutes);
 app.route('/api/tags', tagsRoutes);
@@ -33,11 +41,14 @@ app.route('/api/share', shareRoutes);
 app.route('/api/og', ogRoutes);
 app.route('/api/gemini', geminiRoutes);
 
-// Delete user account (deletes all data)
-app.delete('/api/user', async (c) => {
+// Delete user account (deletes all data for the authenticated user)
+app.delete('/api/user', authMiddleware, async (c) => {
   try {
+    const user = c.get('user') as any;
+    const userId = user.sub;
+
     // Get all file keys to delete from R2
-    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL').all();
+    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND user_id = ?').bind(userId).all();
     
     // Delete all files from R2
     for (const item of items || []) {
@@ -50,10 +61,10 @@ app.delete('/api/user', async (c) => {
       }
     }
 
-    // Delete all data
-    await c.env.DB.prepare('DELETE FROM item_tags').run();
-    await c.env.DB.prepare('DELETE FROM items').run();
-    await c.env.DB.prepare('DELETE FROM tags').run();
+    // Delete all data for the user
+    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ?').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ?').bind(userId).run();
 
     return c.json({ success: true });
   } catch (error) {

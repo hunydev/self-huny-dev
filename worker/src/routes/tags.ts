@@ -1,18 +1,24 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
+import { getUser } from '../middleware/auth';
 
 export const tagsRoutes = new Hono<{ Bindings: Env }>();
 
 // Get all tags
 tagsRoutes.get('/', async (c) => {
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const { results } = await c.env.DB.prepare(`
       SELECT t.*, COUNT(it.item_id) as item_count
       FROM tags t
       LEFT JOIN item_tags it ON t.id = it.tag_id
+      LEFT JOIN items i ON it.item_id = i.id AND i.user_id = ?
+      WHERE t.user_id = ?
       GROUP BY t.id
       ORDER BY t.name ASC
-    `).all();
+    `).bind(userId, userId).all();
 
     const tags = results.map((row: any) => ({
       id: row.id,
@@ -33,6 +39,9 @@ tagsRoutes.get('/', async (c) => {
 // Create new tag
 tagsRoutes.post('/', async (c) => {
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const body = await c.req.json();
     const { name, color, autoKeywords } = body;
 
@@ -47,9 +56,9 @@ tagsRoutes.post('/', async (c) => {
       : null;
 
     await c.env.DB.prepare(`
-      INSERT INTO tags (id, name, color, auto_keywords, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(id, name.trim(), color || null, autoKeywordsJson, now).run();
+      INSERT INTO tags (id, name, color, auto_keywords, user_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(id, name.trim(), color || null, autoKeywordsJson, userId, now).run();
 
     return c.json({ id, name: name.trim(), color, autoKeywords: autoKeywords || [], createdAt: now }, 201);
   } catch (error: any) {
@@ -66,6 +75,9 @@ tagsRoutes.put('/:id', async (c) => {
   const id = c.req.param('id');
 
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const body = await c.req.json();
     const { name, color, autoKeywords } = body;
 
@@ -78,8 +90,8 @@ tagsRoutes.put('/:id', async (c) => {
       : null;
 
     await c.env.DB.prepare(`
-      UPDATE tags SET name = ?, color = ?, auto_keywords = ? WHERE id = ?
-    `).bind(name.trim(), color || null, autoKeywordsJson, id).run();
+      UPDATE tags SET name = ?, color = ?, auto_keywords = ? WHERE id = ? AND user_id = ?
+    `).bind(name.trim(), color || null, autoKeywordsJson, id, userId).run();
 
     return c.json({ success: true, name: name.trim(), autoKeywords: autoKeywords || [] });
   } catch (error: any) {
@@ -96,8 +108,11 @@ tagsRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     // Delete tag (item_tags will cascade)
-    await c.env.DB.prepare('DELETE FROM tags WHERE id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM tags WHERE id = ? AND user_id = ?').bind(id, userId).run();
     return c.json({ success: true });
   } catch (error) {
     console.error('Error deleting tag:', error);

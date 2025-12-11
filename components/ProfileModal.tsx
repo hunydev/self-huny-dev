@@ -38,7 +38,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onExport }
   const fetchStats = async () => {
     setIsLoadingStats(true);
     try {
-      const response = await fetch('/api/items/stats');
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/items/stats', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -89,9 +92,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onExport }
     setError(null);
 
     try {
+      const token = localStorage.getItem('auth_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       if (deleteType === 'data') {
         const response = await fetch('/api/items/delete-all', {
           method: 'DELETE',
+          headers,
         });
 
         if (!response.ok) {
@@ -103,6 +110,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onExport }
       } else if (deleteType === 'account') {
         const response = await fetch('/api/user', {
           method: 'DELETE',
+          headers,
         });
 
         if (!response.ok) {

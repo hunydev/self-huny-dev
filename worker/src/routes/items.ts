@@ -1,22 +1,26 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { parseOgMetadata } from './og';
+import { getUser } from '../middleware/auth';
 
 export const itemsRoutes = new Hono<{ Bindings: Env }>();
 
 // Get user stats - MUST be before /:id route
 itemsRoutes.get('/stats', async (c) => {
   try {
-    // Get total items count
-    const itemCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM items').first();
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Get total items count for user
+    const itemCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM items WHERE user_id = ?').bind(userId).first();
     const totalItems = (itemCountResult?.count as number) || 0;
 
-    // Get total tags count
-    const tagCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tags').first();
+    // Get total tags count for user
+    const tagCountResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tags WHERE user_id = ?').bind(userId).first();
     const totalTags = (tagCountResult?.count as number) || 0;
 
-    // Get total file size
-    const fileSizeResult = await c.env.DB.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM items WHERE file_size IS NOT NULL').first();
+    // Get total file size for user
+    const fileSizeResult = await c.env.DB.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM items WHERE file_size IS NOT NULL AND user_id = ?').bind(userId).first();
     const totalFileSize = (fileSizeResult?.total as number) || 0;
 
     return c.json({
@@ -30,11 +34,14 @@ itemsRoutes.get('/stats', async (c) => {
   }
 });
 
-// Delete all data (items, tags, files) - MUST be before /:id route
+// Delete all data (items, tags, files) for current user - MUST be before /:id route
 itemsRoutes.delete('/delete-all', async (c) => {
   try {
-    // Get all file keys to delete from R2
-    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL').all();
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Get all file keys to delete from R2 for this user
+    const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND user_id = ?').bind(userId).all();
     
     // Delete all files from R2
     for (const item of items || []) {
@@ -47,10 +54,10 @@ itemsRoutes.delete('/delete-all', async (c) => {
       }
     }
 
-    // Delete all item_tags, items, and tags
-    await c.env.DB.prepare('DELETE FROM item_tags').run();
-    await c.env.DB.prepare('DELETE FROM items').run();
-    await c.env.DB.prepare('DELETE FROM tags').run();
+    // Delete all item_tags, items, and tags for this user
+    await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ?').bind(userId).run();
+    await c.env.DB.prepare('DELETE FROM tags WHERE user_id = ?').bind(userId).run();
 
     return c.json({ success: true });
   } catch (error) {
@@ -68,6 +75,9 @@ itemsRoutes.get('/', async (c) => {
   const offset = parseInt(c.req.query('offset') || '0');
 
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     let query = `
       SELECT 
         i.*,
@@ -76,7 +86,8 @@ itemsRoutes.get('/', async (c) => {
       LEFT JOIN item_tags it ON i.id = it.item_id
     `;
     const params: any[] = [];
-    const conditions: string[] = [];
+    const conditions: string[] = ['i.user_id = ?'];
+    params.push(userId);
 
     if (type && type !== 'all') {
       conditions.push('i.type = ?');
@@ -95,9 +106,7 @@ itemsRoutes.get('/', async (c) => {
       conditions.push('i.is_encrypted = 0');
     }
 
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
-    }
+    query += ' WHERE ' + conditions.join(' AND ');
 
     query += ' GROUP BY i.id ORDER BY i.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
@@ -142,15 +151,18 @@ itemsRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
 
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const item = await c.env.DB.prepare(`
       SELECT 
         i.*,
         GROUP_CONCAT(it.tag_id) as tag_ids
       FROM items i
       LEFT JOIN item_tags it ON i.id = it.item_id
-      WHERE i.id = ?
+      WHERE i.id = ? AND i.user_id = ?
       GROUP BY i.id
-    `).bind(id).first();
+    `).bind(id, userId).first();
 
     if (!item) {
       return c.json({ error: 'Item not found' }, 404);
@@ -187,6 +199,9 @@ itemsRoutes.get('/:id', async (c) => {
 // Create new item
 itemsRoutes.post('/', async (c) => {
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const body = await c.req.json();
     const { type, content, htmlContent, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode } = body;
 
@@ -234,8 +249,8 @@ itemsRoutes.post('/', async (c) => {
     }
 
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, user_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, 
       type, 
@@ -252,6 +267,7 @@ itemsRoutes.post('/', async (c) => {
       isEncrypted ? 1 : 0,
       encryptionHash || null,
       isCode ? 1 : 0,
+      userId,
       now
     ).run();
 
@@ -295,12 +311,18 @@ itemsRoutes.put('/:id', async (c) => {
   const id = c.req.param('id');
 
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const body = await c.req.json();
     const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode } = body;
 
     // 암호화 해제 시 기존 비밀번호 검증
     if (isEncrypted === false) {
-      const existingItem = await c.env.DB.prepare('SELECT is_encrypted, encryption_hash FROM items WHERE id = ?').bind(id).first();
+      const existingItem = await c.env.DB.prepare('SELECT is_encrypted, encryption_hash FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
+      if (!existingItem) {
+        return c.json({ error: 'Item not found' }, 404);
+      }
       if (existingItem?.is_encrypted === 1) {
         // 암호화된 아이템을 해제하려면 기존 비밀번호가 필요
         if (!encryptionHash) {
@@ -315,7 +337,10 @@ itemsRoutes.put('/:id', async (c) => {
     // Title is required for encrypted items
     if (isEncrypted && !title) {
       // Check if item already has a title
-      const existingItem = await c.env.DB.prepare('SELECT title FROM items WHERE id = ?').bind(id).first();
+      const existingItem = await c.env.DB.prepare('SELECT title FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
+      if (!existingItem) {
+        return c.json({ error: 'Item not found' }, 404);
+      }
       if (!existingItem?.title) {
         return c.json({ error: '암호화된 아이템은 제목이 필수입니다.' }, 400);
       }
@@ -356,8 +381,8 @@ itemsRoutes.put('/:id', async (c) => {
     }
     
     if (updates.length > 0) {
-      params.push(id);
-      await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ?`)
+      params.push(id, userId);
+      await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`)
         .bind(...params)
         .run();
     }
@@ -390,16 +415,23 @@ itemsRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
   try {
-    // Get item to check for file
-    const item = await c.env.DB.prepare('SELECT file_key FROM items WHERE id = ?').bind(id).first();
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Get item to check for file (and verify ownership)
+    const item = await c.env.DB.prepare('SELECT file_key FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
     
+    if (!item) {
+      return c.json({ error: 'Item not found' }, 404);
+    }
+
     if (item?.file_key) {
       // Delete file from R2
       await c.env.R2_BUCKET.delete(item.file_key as string);
     }
 
     // Delete item (item_tags will cascade)
-    await c.env.DB.prepare('DELETE FROM items WHERE id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(id, userId).run();
 
     return c.json({ success: true });
   } catch (error) {
@@ -413,6 +445,9 @@ itemsRoutes.post('/:id/verify', async (c) => {
   const id = c.req.param('id');
 
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const body = await c.req.json();
     const { keyHash } = body;
 
@@ -420,7 +455,7 @@ itemsRoutes.post('/:id/verify', async (c) => {
       return c.json({ error: '암호화 키가 필요합니다.' }, 400);
     }
 
-    const item = await c.env.DB.prepare('SELECT encryption_hash FROM items WHERE id = ?').bind(id).first();
+    const item = await c.env.DB.prepare('SELECT encryption_hash FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
 
     if (!item) {
       return c.json({ error: 'Item not found' }, 404);
@@ -439,6 +474,9 @@ itemsRoutes.post('/:id/unlock', async (c) => {
   const id = c.req.param('id');
 
   try {
+    const user = getUser(c);
+    const userId = user.sub;
+
     const body = await c.req.json();
     const { keyHash } = body;
 
@@ -452,9 +490,9 @@ itemsRoutes.post('/:id/unlock', async (c) => {
         GROUP_CONCAT(it.tag_id) as tag_ids
       FROM items i
       LEFT JOIN item_tags it ON i.id = it.item_id
-      WHERE i.id = ?
+      WHERE i.id = ? AND i.user_id = ?
       GROUP BY i.id
-    `).bind(id).first();
+    `).bind(id, userId).first();
 
     if (!item) {
       return c.json({ error: 'Item not found' }, 404);
