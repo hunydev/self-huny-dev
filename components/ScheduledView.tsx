@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Item, Tag } from '../types';
 import { ChevronLeft, ChevronRight, Bell, Calendar, FileText, Image as ImageIcon, Video, File as FileIcon, Link as LinkIcon } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, isToday, startOfDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { getFileUrl } from '../services/db';
 
@@ -121,12 +121,25 @@ const ScheduledView: React.FC<ScheduledViewProps> = ({ items, tags: _tags, onIte
   }, [items]);
 
   // 선택된 날짜의 아이템 또는 전체 아이템 (정렬됨)
+  // 리스트 뷰에서는 오늘 이전 날짜의 지난 일정은 표시하지 않음
   const displayItems = useMemo(() => {
     let filtered = items;
+    
     if (selectedDate) {
+      // 특정 날짜 선택 시 해당 날짜 아이템만
       const dateKey = format(selectedDate, 'yyyy-MM-dd');
       filtered = itemsByDate.get(dateKey) || [];
+    } else {
+      // 전체 보기 시: 오늘 날짜의 지난 일정 + 미래 일정만 표시
+      const todayStart = startOfDay(new Date()).getTime();
+      filtered = items.filter(item => {
+        if (!item.reminderAt) return false;
+        // 오늘 이후 시작되는 날짜의 아이템은 모두 표시
+        // 오늘 날짜 아이템은 지났어도 표시
+        return item.reminderAt >= todayStart;
+      });
     }
+    
     // 가까운 시일이 위로 오도록 정렬
     return filtered.sort((a, b) => (a.reminderAt || 0) - (b.reminderAt || 0));
   }, [items, selectedDate, itemsByDate]);
