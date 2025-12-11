@@ -7,7 +7,7 @@ import { shareRoutes } from './routes/share';
 import { ogRoutes, parseOgMetadata } from './routes/og';
 import { geminiRoutes } from './routes/gemini';
 import { uploadFileToR2 } from './utils/uploadFile';
-import { authMiddleware, optionalAuthMiddleware, getOptionalUser, AuthUser, verifyTokenFromCookie } from './middleware/auth';
+import { authMiddleware } from './middleware/auth';
 
 export interface Env {
   DB: D1Database;
@@ -17,12 +17,7 @@ export interface Env {
   GEMINI_API_KEY: SecretsStoreSecret;
 }
 
-// Define Variables type for Hono context
-export type Variables = {
-  user?: AuthUser;
-};
-
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+const app = new Hono<{ Bindings: Env }>();
 
 // CORS middleware
 app.use('/api/*', cors({
@@ -34,11 +29,9 @@ app.use('/api/*', cors({
 // Auth middleware for protected routes
 app.use('/api/items/*', authMiddleware);
 app.use('/api/tags/*', authMiddleware);
-// Note: /api/upload has its own auth handling - POST requires auth, GET doesn't
+app.use('/api/upload/*', authMiddleware);
 app.use('/api/user/*', authMiddleware);
 app.use('/api/gemini/*', authMiddleware);
-// Share routes use optional auth - authenticated users get user_id, anonymous works too
-app.use('/api/share/*', optionalAuthMiddleware);
 
 // API routes
 app.route('/api/items', itemsRoutes);
@@ -80,14 +73,9 @@ app.delete('/api/user', authMiddleware, async (c) => {
   }
 });
 
-// PWA Share Target - handles POST from share intent (with optional auth)
-app.post('/share-target', optionalAuthMiddleware, async (c) => {
+// PWA Share Target - handles POST from share intent
+app.post('/share-target', async (c) => {
   console.log('[Share Target] Received request');
-  
-  // Get optional user
-  const user = getOptionalUser(c);
-  const userId = user?.sub || null;
-  console.log('[Share Target] User ID:', userId);
   console.log('[Share Target] Content-Type:', c.req.header('content-type'));
   
   let formData: FormData;
@@ -172,11 +160,11 @@ app.post('/share-target', optionalAuthMiddleware, async (c) => {
         const now = Date.now();
 
         await c.env.DB.prepare(`
-          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
+          INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, now).run();
 
-        console.log('[Share Target] DB record created, id:', id, 'userId:', userId);
+        console.log('[Share Target] DB record created, id:', id);
         return c.redirect('/?shared=success');
       } catch (error) {
         console.error('[Share Target] File upload failed:', error);
@@ -198,11 +186,11 @@ app.post('/share-target', optionalAuthMiddleware, async (c) => {
       const now = Date.now();
       
       await c.env.DB.prepare(`
-        INSERT INTO items (id, type, content, title, user_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).bind(id, type, content, title || null, userId, now).run();
+        INSERT INTO items (id, type, content, title, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(id, type, content, title || null, now).run();
 
-      console.log('[Share Target] Text/link saved, id:', id, 'userId:', userId);
+      console.log('[Share Target] Text/link saved, id:', id);
       return c.redirect('/?shared=success');
     } catch (error) {
       console.error('[Share Target] Text/link save failed:', error);
@@ -248,7 +236,7 @@ export default {
     
     // Handle share-target directly, before Hono processes the request
     if (url.pathname === '/share-target' && request.method === 'POST') {
-      return handleShareTarget(request, env, ctx);
+      return handleShareTarget(request, env);
     }
     
     // For all other requests, use Hono app
@@ -257,21 +245,14 @@ export default {
 };
 
 // Direct share-target handler (outside Hono to avoid body consumption issues)
-async function handleShareTarget(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+async function handleShareTarget(request: Request, env: Env): Promise<Response> {
   console.log('[Share Target Direct] Received request');
   const contentType = request.headers.get('content-type') || '';
   const contentLength = request.headers.get('content-length');
   console.log('[Share Target Direct] Content-Type:', contentType);
   console.log('[Share Target Direct] Content-Length:', contentLength);
   
-  // Get user from cookie for authentication
-  const cookieHeader = request.headers.get('cookie');
-  const user = await verifyTokenFromCookie(cookieHeader);
-  const userId = user?.sub || null;
-  console.log('[Share Target Direct] User ID from cookie:', userId);
-  
-  // Read the raw body ONCE - this must happen before response is sent
-  // (HTTP protocol requires full body to be received before response)
+  // Read the raw body ONCE - this is the only read we'll do
   const rawBody = await request.arrayBuffer();
   console.log('[Share Target Direct] Raw body size:', rawBody.byteLength);
   
@@ -286,7 +267,7 @@ async function handleShareTarget(request: Request, env: Env, ctx: ExecutionConte
     
     const formData = await freshRequest.formData();
     console.log('[Share Target Direct] FormData parsed successfully');
-    return await processFormData(formData, request.url, env, userId, ctx);
+    return await processFormData(formData, request.url, env);
   } catch (parseError) {
     console.error('[Share Target Direct] Standard formData parsing failed:', parseError);
   }
@@ -302,7 +283,7 @@ async function handleShareTarget(request: Request, env: Env, ctx: ExecutionConte
         hasUrl: !!result.url,
         hasTitle: !!result.title,
       });
-      return await processShareData(result, request.url, env, userId, ctx);
+      return await processShareData(result, request.url, env);
     }
     console.log('[Share Target Direct] Manual parsing returned no useful data');
   } catch (manualError) {
@@ -313,7 +294,7 @@ async function handleShareTarget(request: Request, env: Env, ctx: ExecutionConte
 }
 
 // Process parsed formData - redirect to share choice page
-async function processFormData(formData: FormData, requestUrl: string, env: Env, userId: string | null, ctx: ExecutionContext): Promise<Response> {
+async function processFormData(formData: FormData, requestUrl: string, env: Env): Promise<Response> {
   const title = formData.get('title') as string;
   const text = formData.get('text') as string;
   const urlParam = formData.get('url') as string;
@@ -340,10 +321,9 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env,
     url: urlParam,
     formDataEntries,
     filesCount: allFiles.length,
-    userId,
   });
 
-  // Handle file uploads - use background upload for large files
+  // Handle file uploads - files go directly to storage (no choice for files)
   if (allFiles.length > 0) {
     const file = allFiles[0];
     const originalName = typeof file.name === 'string' && file.name.trim().length > 0
@@ -359,50 +339,31 @@ async function processFormData(formData: FormData, requestUrl: string, env: Env,
       fileKey
     });
 
-    const type = file.type?.startsWith('image/') ? 'image' 
-      : file.type?.startsWith('video/') ? 'video' 
-      : 'file';
-
-    const id = crypto.randomUUID();
-    const now = Date.now();
-    
     try {
-      // Read file data once (this is already in memory after network transfer)
       const arrayBuffer = await file.arrayBuffer();
       
-      // Always use background upload for files to minimize response time
-      // The file data is already in memory, only R2 upload is done in background
-      console.log('[Share Target Direct] Using background R2 upload');
+      await env.R2_BUCKET.put(fileKey, arrayBuffer, {
+        httpMetadata: {
+          contentType: file.type || 'application/octet-stream',
+        },
+      });
       
-      // Create DB record with uploading status first
+      console.log('[Share Target Direct] File uploaded to R2, bytes:', arrayBuffer.byteLength);
+
+      const type = file.type?.startsWith('image/') ? 'image' 
+        : file.type?.startsWith('video/') ? 'video' 
+        : 'file';
+
+      const id = crypto.randomUUID();
+      const now = Date.now();
+
       await env.DB.prepare(`
-        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, upload_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)
-      `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, userId, now).run();
-      
-      console.log('[Share Target Direct] DB record created with uploading status, id:', id);
-      
-      // Upload to R2 in background using waitUntil
-      ctx.waitUntil((async () => {
-        try {
-          await env.R2_BUCKET.put(fileKey, arrayBuffer, {
-            httpMetadata: {
-              contentType: file.type || 'application/octet-stream',
-            },
-          });
-          
-          // Update status to completed
-          await env.DB.prepare(`UPDATE items SET upload_status = NULL WHERE id = ?`).bind(id).run();
-          console.log('[Share Target Background] R2 upload completed for id:', id);
-        } catch (error) {
-          // Update status to failed
-          await env.DB.prepare(`UPDATE items SET upload_status = 'failed' WHERE id = ?`).bind(id).run();
-          console.error('[Share Target Background] R2 upload failed for id:', id, error);
-        }
-      })());
-      
-      // Return immediately - R2 upload continues in background
-      return Response.redirect(new URL('/?shared=uploading', requestUrl).toString(), 303);
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, type, '', fileKey, originalName, file.size, file.type || 'application/octet-stream', title || null, now).run();
+
+      console.log('[Share Target Direct] DB record created, id:', id);
+      return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] File upload failed:', error);
       return Response.redirect(new URL('/?shared=error&reason=upload_failed', requestUrl).toString(), 303);
@@ -538,56 +499,33 @@ function parseMultipartManually(body: ArrayBuffer, contentType: string): ParsedM
 }
 
 // Process manually parsed data
-async function processShareData(data: ParsedMultipart, requestUrl: string, env: Env, userId: string | null, ctx: ExecutionContext): Promise<Response> {
+async function processShareData(data: ParsedMultipart, requestUrl: string, env: Env): Promise<Response> {
   // Handle file if present
   if (data.file && data.file.data.byteLength > 0) {
     const originalName = data.file.name || 'unnamed';
     const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const fileKey = `${crypto.randomUUID()}-${sanitizedName}`;
     
-    const type = data.file.type?.startsWith('image/') ? 'image' 
-      : data.file.type?.startsWith('video/') ? 'video' 
-      : 'file';
-
-    const id = crypto.randomUUID();
-    const now = Date.now();
-    const fileData = data.file.data;
-    const fileType = data.file.type;
-    const fileSize = data.file.data.byteLength;
-    
     try {
-      // Always use background upload for files
-      console.log('[Share Target Direct] Manual parser: Using background R2 upload');
+      await env.R2_BUCKET.put(fileKey, data.file.data, {
+        httpMetadata: {
+          contentType: data.file.type,
+        },
+      });
       
-      // Create DB record with uploading status first
+      const type = data.file.type?.startsWith('image/') ? 'image' 
+        : data.file.type?.startsWith('video/') ? 'video' 
+        : 'file';
+
+      const id = crypto.randomUUID();
+      const now = Date.now();
+
       await env.DB.prepare(`
-        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, user_id, upload_status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?)
-      `).bind(id, type, '', fileKey, originalName, fileSize, fileType, data.title || null, userId, now).run();
-      
-      console.log('[Share Target Direct] Manual parser: DB record created with uploading status, id:', id);
-      
-      // Upload to R2 in background using waitUntil
-      ctx.waitUntil((async () => {
-        try {
-          await env.R2_BUCKET.put(fileKey, fileData, {
-            httpMetadata: {
-              contentType: fileType,
-            },
-          });
-          
-          // Update status to completed
-          await env.DB.prepare(`UPDATE items SET upload_status = NULL WHERE id = ?`).bind(id).run();
-          console.log('[Share Target Background] Manual parser: R2 upload completed for id:', id);
-        } catch (error) {
-          // Update status to failed
-          await env.DB.prepare(`UPDATE items SET upload_status = 'failed' WHERE id = ?`).bind(id).run();
-          console.error('[Share Target Background] Manual parser: R2 upload failed for id:', id, error);
-        }
-      })());
-      
-      // Return immediately - R2 upload continues in background
-      return Response.redirect(new URL('/?shared=uploading', requestUrl).toString(), 303);
+        INSERT INTO items (id, type, content, file_key, file_name, file_size, mime_type, title, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, type, '', fileKey, originalName, data.file.data.byteLength, data.file.type, data.title || null, now).run();
+
+      return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
     } catch (error) {
       console.error('[Share Target Direct] Manual file upload failed:', error);
       return Response.redirect(new URL('/?shared=error&reason=upload_failed', requestUrl).toString(), 303);
@@ -631,11 +569,10 @@ async function processShareData(data: ParsedMultipart, requestUrl: string, env: 
     }
     
     await env.DB.prepare(`
-      INSERT INTO items (id, type, content, title, og_image, og_title, og_description, user_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, type, content, data.title || null, ogImage, ogTitle, ogDescription, userId, now).run();
+      INSERT INTO items (id, type, content, title, og_image, og_title, og_description, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, type, content, data.title || null, ogImage, ogTitle, ogDescription, now).run();
 
-    console.log('[Share Target Direct] Manual text/link saved, id:', id, 'userId:', userId);
     return Response.redirect(new URL('/?shared=success', requestUrl).toString(), 303);
   }
 

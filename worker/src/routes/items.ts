@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import type { Env, Variables } from '../index';
+import type { Env } from '../index';
 import { parseOgMetadata } from './og';
 import { getUser } from '../middleware/auth';
 
-export const itemsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+export const itemsRoutes = new Hono<{ Bindings: Env }>();
 
 // Get user stats - MUST be before /:id route
 itemsRoutes.get('/stats', async (c) => {
@@ -66,260 +66,6 @@ itemsRoutes.delete('/delete-all', async (c) => {
   }
 });
 
-// Claim orphan items (items with user_id = NULL) created by PWA share target
-// This assigns recent orphan items to the authenticated user
-itemsRoutes.post('/claim-orphans', async (c) => {
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-
-    // Find orphan items created in the last 5 minutes
-    // This window ensures we only claim items that were just shared
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-    
-    // Get orphan items to return in response
-    const { results: orphanItems } = await c.env.DB.prepare(`
-      SELECT id, type, file_name, created_at FROM items 
-      WHERE user_id IS NULL AND created_at > ?
-      ORDER BY created_at DESC
-    `).bind(fiveMinutesAgo).all();
-    
-    if (orphanItems.length === 0) {
-      return c.json({ success: true, claimed: 0 });
-    }
-    
-    // Update orphan items to belong to this user
-    const result = await c.env.DB.prepare(`
-      UPDATE items SET user_id = ? 
-      WHERE user_id IS NULL AND created_at > ?
-    `).bind(userId, fiveMinutesAgo).run();
-    
-    console.log('[Claim Orphans] Claimed items:', result.meta.changes, 'for user:', userId);
-    
-    return c.json({ 
-      success: true, 
-      claimed: result.meta.changes || 0,
-      items: orphanItems
-    });
-  } catch (error) {
-    console.error('Error claiming orphan items:', error);
-    return c.json({ error: 'Failed to claim orphan items' }, 500);
-  }
-});
-
-// Get trash items - MUST be before /:id route
-itemsRoutes.get('/trash', async (c) => {
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-
-    // Get items that are in trash (deleted_at is set)
-    const { results } = await c.env.DB.prepare(`
-      SELECT 
-        i.*,
-        GROUP_CONCAT(it.tag_id) as tag_ids
-      FROM items i
-      LEFT JOIN item_tags it ON i.id = it.item_id
-      WHERE i.user_id = ? AND i.deleted_at IS NOT NULL
-      GROUP BY i.id
-      ORDER BY i.deleted_at DESC
-    `).bind(userId).all();
-    
-    // Transform results
-    const items = results.map((row: any) => {
-      const isEncrypted = row.is_encrypted === 1;
-      return {
-        id: row.id,
-        type: row.type,
-        content: isEncrypted ? '' : row.content,
-        htmlContent: isEncrypted ? undefined : row.html_content,
-        fileKey: (isEncrypted || row.upload_status) ? undefined : row.file_key,
-        fileName: row.file_name,
-        fileSize: row.file_size,
-        mimeType: row.mime_type,
-        title: row.title,
-        ogImage: isEncrypted ? undefined : row.og_image,
-        ogTitle: row.og_title,
-        ogDescription: isEncrypted ? undefined : row.og_description,
-        tags: row.tag_ids ? row.tag_ids.split(',') : [],
-        isFavorite: row.is_favorite === 1,
-        isEncrypted,
-        isCode: row.is_code === 1,
-        uploadStatus: row.upload_status || null,
-        createdAt: row.created_at,
-        deletedAt: row.deleted_at,
-      };
-    });
-
-    return c.json(items);
-  } catch (error) {
-    console.error('Error fetching trash items:', error);
-    return c.json({ error: 'Failed to fetch trash items' }, 500);
-  }
-});
-
-// Empty trash - MUST be before /:id route
-itemsRoutes.delete('/trash/empty', async (c) => {
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-
-    // Get all trash items with files
-    const { results } = await c.env.DB.prepare(
-      'SELECT id, file_key FROM items WHERE user_id = ? AND deleted_at IS NOT NULL'
-    ).bind(userId).all();
-
-    // Delete files from R2
-    for (const item of results) {
-      if (item.file_key) {
-        await c.env.R2_BUCKET.delete(item.file_key as string);
-      }
-    }
-
-    // Delete all trash items
-    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ? AND deleted_at IS NOT NULL').bind(userId).run();
-
-    return c.json({ success: true, deleted: results.length });
-  } catch (error) {
-    console.error('Error emptying trash:', error);
-    return c.json({ error: 'Failed to empty trash' }, 500);
-  }
-});
-
-// Get scheduled items (items with reminder_at set) - MUST be before /:id route
-itemsRoutes.get('/scheduled', async (c) => {
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-
-    const { results } = await c.env.DB.prepare(`
-      SELECT 
-        i.*,
-        GROUP_CONCAT(it.tag_id) as tag_ids
-      FROM items i
-      LEFT JOIN item_tags it ON i.id = it.item_id
-      WHERE i.user_id = ? AND i.deleted_at IS NULL AND i.reminder_at IS NOT NULL
-      GROUP BY i.id
-      ORDER BY i.reminder_at ASC
-    `).bind(userId).all();
-    
-    const items = results.map((row: any) => {
-      const isEncrypted = row.is_encrypted === 1;
-      return {
-        id: row.id,
-        type: row.type,
-        content: isEncrypted ? '' : row.content,
-        htmlContent: isEncrypted ? undefined : row.html_content,
-        fileKey: (isEncrypted || row.upload_status) ? undefined : row.file_key,
-        fileName: row.file_name,
-        fileSize: row.file_size,
-        mimeType: row.mime_type,
-        title: row.title,
-        ogImage: isEncrypted ? undefined : row.og_image,
-        ogTitle: row.og_title,
-        ogDescription: isEncrypted ? undefined : row.og_description,
-        tags: row.tag_ids ? row.tag_ids.split(',') : [],
-        isFavorite: row.is_favorite === 1,
-        isEncrypted,
-        isCode: row.is_code === 1,
-        uploadStatus: row.upload_status || null,
-        reminderAt: row.reminder_at,
-        createdAt: row.created_at,
-      };
-    });
-
-    return c.json(items);
-  } catch (error) {
-    console.error('Error fetching scheduled items:', error);
-    return c.json({ error: 'Failed to fetch scheduled items' }, 500);
-  }
-});
-
-// Get expiring items (items with expires_at set) - MUST be before /:id route
-itemsRoutes.get('/expiring', async (c) => {
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-
-    const { results } = await c.env.DB.prepare(`
-      SELECT 
-        i.*,
-        GROUP_CONCAT(it.tag_id) as tag_ids
-      FROM items i
-      LEFT JOIN item_tags it ON i.id = it.item_id
-      WHERE i.user_id = ? AND i.deleted_at IS NULL AND i.expires_at IS NOT NULL
-      GROUP BY i.id
-      ORDER BY i.expires_at ASC
-    `).bind(userId).all();
-    
-    const items = results.map((row: any) => {
-      const isEncrypted = row.is_encrypted === 1;
-      return {
-        id: row.id,
-        type: row.type,
-        content: isEncrypted ? '' : row.content,
-        htmlContent: isEncrypted ? undefined : row.html_content,
-        fileKey: (isEncrypted || row.upload_status) ? undefined : row.file_key,
-        fileName: row.file_name,
-        fileSize: row.file_size,
-        mimeType: row.mime_type,
-        title: row.title,
-        ogImage: isEncrypted ? undefined : row.og_image,
-        ogTitle: row.og_title,
-        ogDescription: isEncrypted ? undefined : row.og_description,
-        tags: row.tag_ids ? row.tag_ids.split(',') : [],
-        isFavorite: row.is_favorite === 1,
-        isEncrypted,
-        isCode: row.is_code === 1,
-        uploadStatus: row.upload_status || null,
-        reminderAt: row.reminder_at,
-        expiresAt: row.expires_at,
-        createdAt: row.created_at,
-      };
-    });
-
-    return c.json(items);
-  } catch (error) {
-    console.error('Error fetching expiring items:', error);
-    return c.json({ error: 'Failed to fetch expiring items' }, 500);
-  }
-});
-
-// Auto-expire items (move expired items to trash) - can be called by cron or on page load
-itemsRoutes.post('/expire-check', async (c) => {
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-    const now = Date.now();
-
-    // Get expired items
-    const { results: expiredItems } = await c.env.DB.prepare(`
-      SELECT id FROM items 
-      WHERE user_id = ? AND deleted_at IS NULL AND expires_at IS NOT NULL AND expires_at < ?
-    `).bind(userId, now).all();
-
-    if (expiredItems.length === 0) {
-      return c.json({ success: true, expired: 0 });
-    }
-
-    // Move expired items to trash
-    const result = await c.env.DB.prepare(`
-      UPDATE items SET deleted_at = ? 
-      WHERE user_id = ? AND deleted_at IS NULL AND expires_at IS NOT NULL AND expires_at < ?
-    `).bind(now, userId, now).run();
-
-    console.log('[Expire Check] Expired items moved to trash:', result.meta.changes, 'for user:', userId);
-
-    return c.json({ 
-      success: true, 
-      expired: result.meta.changes || 0
-    });
-  } catch (error) {
-    console.error('Error checking expired items:', error);
-    return c.json({ error: 'Failed to check expired items' }, 500);
-  }
-});
-
 // Get all items with their tags
 itemsRoutes.get('/', async (c) => {
   const type = c.req.query('type');
@@ -340,7 +86,7 @@ itemsRoutes.get('/', async (c) => {
       LEFT JOIN item_tags it ON i.id = it.item_id
     `;
     const params: any[] = [];
-    const conditions: string[] = ['i.user_id = ?', 'i.deleted_at IS NULL'];
+    const conditions: string[] = ['i.user_id = ?'];
     params.push(userId);
 
     if (type && type !== 'all') {
@@ -376,8 +122,8 @@ itemsRoutes.get('/', async (c) => {
         // Hide content for encrypted items
         content: isEncrypted ? '' : row.content,
         htmlContent: isEncrypted ? undefined : row.html_content,
-        // Hide fileKey for encrypted items (also hide if upload is in progress)
-        fileKey: (isEncrypted || row.upload_status) ? undefined : row.file_key,
+        // Hide fileKey for encrypted items
+        fileKey: isEncrypted ? undefined : row.file_key,
         fileName: row.file_name,
         fileSize: row.file_size,
         mimeType: row.mime_type,
@@ -389,9 +135,6 @@ itemsRoutes.get('/', async (c) => {
         isFavorite: row.is_favorite === 1,
         isEncrypted,
         isCode: row.is_code === 1,
-        uploadStatus: row.upload_status || null,
-        reminderAt: row.reminder_at || null,
-        expiresAt: row.expires_at || null,
         createdAt: row.created_at,
       };
     });
@@ -432,8 +175,8 @@ itemsRoutes.get('/:id', async (c) => {
       // Hide content for encrypted items
       content: isEncrypted ? '' : item.content,
       htmlContent: isEncrypted ? undefined : item.html_content,
-      // Hide fileKey for encrypted items (also hide if upload is in progress)
-      fileKey: (isEncrypted || item.upload_status) ? undefined : item.file_key,
+      // Hide fileKey for encrypted items
+      fileKey: isEncrypted ? undefined : item.file_key,
       fileName: item.file_name,
       fileSize: item.file_size,
       mimeType: item.mime_type,
@@ -445,9 +188,6 @@ itemsRoutes.get('/:id', async (c) => {
       isFavorite: item.is_favorite === 1,
       isEncrypted,
       isCode: item.is_code === 1,
-      uploadStatus: item.upload_status || null,
-      reminderAt: item.reminder_at || null,
-      expiresAt: item.expires_at || null,
       createdAt: item.created_at,
     });
   } catch (error) {
@@ -463,7 +203,7 @@ itemsRoutes.post('/', async (c) => {
     const userId = user.sub;
 
     const body = await c.req.json();
-    const { type, content, htmlContent, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode, reminderAt, expiresAt } = body;
+    const { type, content, htmlContent, fileKey, fileName, fileSize, mimeType, title, tags, isEncrypted, encryptionHash, isCode } = body;
 
     // Title is required for encrypted items
     if (isEncrypted && !title) {
@@ -509,8 +249,8 @@ itemsRoutes.post('/', async (c) => {
     }
 
     await c.env.DB.prepare(`
-      INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, reminder_at, expires_at, user_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, user_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, 
       type, 
@@ -527,8 +267,6 @@ itemsRoutes.post('/', async (c) => {
       isEncrypted ? 1 : 0,
       encryptionHash || null,
       isCode ? 1 : 0,
-      reminderAt || null,
-      expiresAt || null,
       userId,
       now
     ).run();
@@ -560,8 +298,6 @@ itemsRoutes.post('/', async (c) => {
       isFavorite: false,
       isEncrypted: !!isEncrypted,
       isCode: !!isCode,
-      reminderAt: reminderAt || null,
-      expiresAt: expiresAt || null,
       createdAt: now 
     }, 201);
   } catch (error) {
@@ -579,7 +315,7 @@ itemsRoutes.put('/:id', async (c) => {
     const userId = user.sub;
 
     const body = await c.req.json();
-    const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode, reminderAt, expiresAt } = body;
+    const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode } = body;
 
     // 암호화 해제 시 기존 비밀번호 검증
     if (isEncrypted === false) {
@@ -643,14 +379,6 @@ itemsRoutes.put('/:id', async (c) => {
       updates.push('is_code = ?');
       params.push(isCode ? 1 : 0);
     }
-    if (reminderAt !== undefined) {
-      updates.push('reminder_at = ?');
-      params.push(reminderAt || null);
-    }
-    if (expiresAt !== undefined) {
-      updates.push('expires_at = ?');
-      params.push(expiresAt || null);
-    }
     
     if (updates.length > 0) {
       params.push(id, userId);
@@ -682,59 +410,8 @@ itemsRoutes.put('/:id', async (c) => {
   }
 });
 
-// Delete item (soft delete - move to trash)
+// Delete item
 itemsRoutes.delete('/:id', async (c) => {
-  const id = c.req.param('id');
-
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-
-    // Check if item exists and belongs to user
-    const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NULL').bind(id, userId).first();
-    
-    if (!item) {
-      return c.json({ error: 'Item not found' }, 404);
-    }
-
-    // Soft delete - set deleted_at timestamp
-    const deletedAt = Date.now();
-    await c.env.DB.prepare('UPDATE items SET deleted_at = ? WHERE id = ? AND user_id = ?').bind(deletedAt, id, userId).run();
-
-    return c.json({ success: true, deletedAt });
-  } catch (error) {
-    console.error('Error deleting item:', error);
-    return c.json({ error: 'Failed to delete item' }, 500);
-  }
-});
-
-// Restore item from trash
-itemsRoutes.post('/:id/restore', async (c) => {
-  const id = c.req.param('id');
-
-  try {
-    const user = getUser(c);
-    const userId = user.sub;
-
-    // Check if item exists in trash
-    const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL').bind(id, userId).first();
-    
-    if (!item) {
-      return c.json({ error: 'Item not found in trash' }, 404);
-    }
-
-    // Restore item
-    await c.env.DB.prepare('UPDATE items SET deleted_at = NULL WHERE id = ? AND user_id = ?').bind(id, userId).run();
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error('Error restoring item:', error);
-    return c.json({ error: 'Failed to restore item' }, 500);
-  }
-});
-
-// Permanently delete item
-itemsRoutes.delete('/:id/permanent', async (c) => {
   const id = c.req.param('id');
 
   try {
@@ -753,13 +430,13 @@ itemsRoutes.delete('/:id/permanent', async (c) => {
       await c.env.R2_BUCKET.delete(item.file_key as string);
     }
 
-    // Permanently delete item (item_tags will cascade)
+    // Delete item (item_tags will cascade)
     await c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(id, userId).run();
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('Error permanently deleting item:', error);
-    return c.json({ error: 'Failed to permanently delete item' }, 500);
+    console.error('Error deleting item:', error);
+    return c.json({ error: 'Failed to delete item' }, 500);
   }
 });
 
