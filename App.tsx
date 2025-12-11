@@ -180,8 +180,17 @@ const AuthenticatedContent: React.FC = () => {
       setTimeout(() => setShareStatus(null), delay);
       
       // Reload items to show newly shared content
+      // Also claim any orphan items from PWA share target
       if (shared === 'success') {
-        loadData();
+        // First claim any orphan items (from PWA share target which can't use auth)
+        db.claimOrphanItems()
+          .then((result) => {
+            if (result.claimed > 0) {
+              console.log('[Share] Claimed orphan items:', result.claimed);
+            }
+          })
+          .catch((err) => console.error('[Share] Failed to claim orphans:', err))
+          .finally(() => loadData());
       }
     }
     

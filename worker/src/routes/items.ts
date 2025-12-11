@@ -66,6 +66,47 @@ itemsRoutes.delete('/delete-all', async (c) => {
   }
 });
 
+// Claim orphan items (items with user_id = NULL) created by PWA share target
+// This assigns recent orphan items to the authenticated user
+itemsRoutes.post('/claim-orphans', async (c) => {
+  try {
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Find orphan items created in the last 5 minutes
+    // This window ensures we only claim items that were just shared
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    
+    // Get orphan items to return in response
+    const { results: orphanItems } = await c.env.DB.prepare(`
+      SELECT id, type, file_name, created_at FROM items 
+      WHERE user_id IS NULL AND created_at > ?
+      ORDER BY created_at DESC
+    `).bind(fiveMinutesAgo).all();
+    
+    if (orphanItems.length === 0) {
+      return c.json({ success: true, claimed: 0 });
+    }
+    
+    // Update orphan items to belong to this user
+    const result = await c.env.DB.prepare(`
+      UPDATE items SET user_id = ? 
+      WHERE user_id IS NULL AND created_at > ?
+    `).bind(userId, fiveMinutesAgo).run();
+    
+    console.log('[Claim Orphans] Claimed items:', result.meta.changes, 'for user:', userId);
+    
+    return c.json({ 
+      success: true, 
+      claimed: result.meta.changes || 0,
+      items: orphanItems
+    });
+  } catch (error) {
+    console.error('Error claiming orphan items:', error);
+    return c.json({ error: 'Failed to claim orphan items' }, 500);
+  }
+});
+
 // Get all items with their tags
 itemsRoutes.get('/', async (c) => {
   const type = c.req.query('type');

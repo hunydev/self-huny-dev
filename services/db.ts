@@ -434,3 +434,18 @@ export const updateItemTitle = async (itemId: string, title: string): Promise<vo
     throw new Error('Failed to update item title');
   }
 };
+
+// Claim orphan items (items shared via PWA share target that have no user_id)
+export const claimOrphanItems = async (): Promise<{ claimed: number }> => {
+  const response = await fetch(`${API_BASE}/items/claim-orphans`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Failed to claim orphan items' })) as { error?: string };
+    throw new Error(errorData.error || 'Failed to claim orphan items');
+  }
+
+  return response.json();
+};
