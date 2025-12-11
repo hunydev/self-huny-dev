@@ -222,6 +222,10 @@ const AuthenticatedContent: React.FC = () => {
 
   // Load initial data and check share status - runs only once on mount
   useEffect(() => {
+    // Track polling interval to avoid duplicates
+    let pollInterval: NodeJS.Timeout | null = null;
+    let hasShownUploadToast = false;
+    
     loadData();
     
     // Check for share result notification and action parameter
@@ -234,7 +238,7 @@ const AuthenticatedContent: React.FC = () => {
     
     if (shared) {
       setShareStatus(shared);
-      // Clean URL
+      // Clean URL immediately
       window.history.replaceState({}, document.title, window.location.pathname);
       
       // Clear notification after delay (longer for pending/uploading)
@@ -252,27 +256,39 @@ const AuthenticatedContent: React.FC = () => {
             }
           })
           .catch((err) => console.error('[Share] Failed to claim orphans:', err))
-          .finally(() => loadData());
-        
-        // For uploading status, poll for completion
-        if (shared === 'uploading') {
-          const pollInterval = setInterval(async () => {
-            try {
-              const items = await db.getItems();
-              const hasUploading = items.some(item => item.uploadStatus === 'uploading');
-              if (!hasUploading) {
-                clearInterval(pollInterval);
-                loadData();
-                showToast('파일 업로드가 완료되었습니다', 'success');
-              }
-            } catch (err) {
-              console.error('[Share] Poll error:', err);
+          .finally(() => {
+            loadData();
+            
+            // For uploading status, poll for completion (only once)
+            if (shared === 'uploading' && !pollInterval) {
+              pollInterval = setInterval(async () => {
+                try {
+                  const items = await db.getItems();
+                  const hasUploading = items.some(item => item.uploadStatus === 'uploading');
+                  if (!hasUploading && pollInterval && !hasShownUploadToast) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    hasShownUploadToast = true;
+                    loadData();
+                    showToast('파일 업로드가 완료되었습니다', 'success');
+                  } else if (hasUploading) {
+                    // Just update items without toast while uploading
+                    setItems(items);
+                  }
+                } catch (err) {
+                  console.error('[Share] Poll error:', err);
+                }
+              }, 3000);
+              
+              // Stop polling after 2 minutes max
+              setTimeout(() => {
+                if (pollInterval) {
+                  clearInterval(pollInterval);
+                  pollInterval = null;
+                }
+              }, 120000);
             }
-          }, 3000);
-          
-          // Stop polling after 2 minutes max
-          setTimeout(() => clearInterval(pollInterval), 120000);
-        }
+          });
       }
     }
     
