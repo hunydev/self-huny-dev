@@ -65,15 +65,20 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [showCreditsModal, setShowCreditsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
 
-  const navItems: NavItem[] = [
+  // Type filters
+  const typeNavItems: NavItem[] = [
     { id: 'all', label: 'All', icon: <LayoutGrid size={18} />, filterType: 'all' },
-    { id: 'favorites', label: 'Favorites', icon: <Star size={18} />, filterType: 'favorites' as any },
-    { id: 'encrypted', label: 'Encrypted', icon: <LockKeyhole size={18} />, filterType: 'encrypted' as any },
     { id: 'text', label: 'Text', icon: <FileText size={18} />, filterType: ItemType.TEXT },
     { id: 'link', label: 'Links', icon: <LinkIcon size={18} />, filterType: ItemType.LINK },
     { id: 'image', label: 'Images', icon: <ImageIcon size={18} />, filterType: ItemType.IMAGE },
     { id: 'video', label: 'Videos', icon: <Video size={18} />, filterType: ItemType.VIDEO },
     { id: 'file', label: 'Files', icon: <FileIcon size={18} />, filterType: ItemType.FILE },
+  ];
+
+  // Special filters (separated)
+  const specialNavItems: NavItem[] = [
+    { id: 'favorites', label: 'Favorites', icon: <Star size={18} />, filterType: 'favorites' as any },
+    { id: 'encrypted', label: 'Encrypted', icon: <LockKeyhole size={18} />, filterType: 'encrypted' as any },
     { id: 'trash', label: 'Trash', icon: <Trash2 size={18} />, filterType: 'trash' as any },
   ];
 
@@ -214,9 +219,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Main Nav */}
+          {/* Main Nav - Type Filters */}
           <nav className="flex-1 overflow-y-auto py-2 px-3 space-y-1">
-            {navItems.map((item) => {
+            {typeNavItems.map((item) => {
               const count = itemCounts[item.filterType || 'all'] || 0;
               return (
                 <button
@@ -244,6 +249,59 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               );
             })}
+
+            <div className="my-4 border-t border-slate-100 mx-3" />
+
+            {/* Special Filters - Favorites, Encrypted, Trash */}
+            <div className="px-0">
+              <span className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Collections</span>
+              <div className="mt-2 space-y-1">
+                {specialNavItems.map((item) => {
+                  const count = itemCounts[item.filterType || 'all'] || 0;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (item.filterType) {
+                          onFilterChange(item.filterType);
+                          onTagFilterChange(null);
+                        }
+                        setIsOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        activeFilter === item.filterType && !activeTagFilter
+                          ? item.id === 'trash' 
+                            ? 'bg-red-50 text-red-600'
+                            : item.id === 'favorites'
+                            ? 'bg-amber-50 text-amber-600'
+                            : 'bg-indigo-50 text-indigo-600'
+                          : item.id === 'trash'
+                          ? 'text-slate-600 hover:bg-red-50 hover:text-red-600'
+                          : item.id === 'favorites'
+                          ? 'text-slate-600 hover:bg-amber-50 hover:text-amber-600'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {item.icon}
+                        {item.label}
+                      </div>
+                      {count > 0 && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${
+                          item.id === 'trash' 
+                            ? 'text-red-500 bg-red-100' 
+                            : item.id === 'favorites'
+                            ? 'text-amber-500 bg-amber-100'
+                            : 'text-slate-400 bg-slate-100'
+                        }`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <div className="my-4 border-t border-slate-100 mx-3" />
 
