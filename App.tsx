@@ -1207,29 +1207,10 @@ const AuthenticatedContent: React.FC = () => {
         </div>
 
         <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto scroll-smooth ${activeFilter === 'scheduled' ? 'flex flex-col' : ''}`}>
-          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash and expiring view) */}
-          {activeFilter !== 'trash' && activeFilter !== 'expiring' && (
-            <div className="sticky top-0 z-20 px-4 lg:px-8 pt-4 lg:pt-6 pb-4 pointer-events-none">
-              <div className="max-w-3xl mx-auto w-full pointer-events-auto">
-                <div className="shadow-lg shadow-slate-900/10 rounded-xl">
-                  <InputArea 
-                    ref={inputAreaRef}
-                    onSave={handleSaveItem} 
-                    availableTags={tags}
-                    autoFocus={shouldAutoFocus}
-                    onAddTag={handleAddTag}
-                    onDeleteTag={handleDeleteTag}
-                    activeTagFilter={activeTagFilter}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className={`${activeFilter === 'scheduled' ? 'flex-1 flex flex-col' : 'max-w-7xl mx-auto'}`}>
             {/* Active filter indicator */}
             {(activeTagFilter || searchQuery) && activeFilter !== 'scheduled' && (
-              <div className="px-4 lg:px-8 pb-2">
+              <div className="px-4 lg:px-8 pt-4 pb-2">
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   {searchQuery && (
                     <span className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200">
@@ -1282,6 +1263,25 @@ const AuthenticatedContent: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Bottom Input Area - expands upward (hidden in trash and expiring view) */}
+        {activeFilter !== 'trash' && activeFilter !== 'expiring' && activeFilter !== 'scheduled' && (
+          <div className="shrink-0 px-4 lg:px-8 pb-4 pt-2 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent">
+            <div className="max-w-3xl mx-auto w-full">
+              <div className="shadow-lg shadow-slate-900/10 rounded-xl">
+                <InputArea 
+                  ref={inputAreaRef}
+                  onSave={handleSaveItem} 
+                  availableTags={tags}
+                  autoFocus={shouldAutoFocus}
+                  onAddTag={handleAddTag}
+                  onDeleteTag={handleDeleteTag}
+                  activeTagFilter={activeTagFilter}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Upload Progress */}
