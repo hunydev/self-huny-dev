@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Pause, Code, RotateCcw, Bell } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Pause, Code, RotateCcw, Bell, Timer } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -239,11 +239,18 @@ const FeedItem: React.FC<FeedItemProps> = ({
     if (item.isEncrypted) {
       return (
         <div className="relative p-6 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 gap-3">
-          {item.reminderAt && (
-            <div className="absolute top-2 right-2 z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
-              <Bell size={14} className="text-blue-500" />
-            </div>
-          )}
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+            {item.expiresAt && (
+              <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                <Timer size={14} className="text-orange-500" />
+              </div>
+            )}
+            {item.reminderAt && (
+              <div title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                <Bell size={14} className="text-blue-500" />
+              </div>
+            )}
+          </div>
           <div className="w-14 h-14 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-400">
             <LockKeyhole size={28} />
           </div>
@@ -264,12 +271,19 @@ const FeedItem: React.FC<FeedItemProps> = ({
                 <ImageIcon size={32} />
               </div>
             )}
-            {/* 알림 배지 */}
-            {item.reminderAt && (
-              <div className="absolute top-2 right-2" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
-                <Bell size={14} className="text-blue-500 drop-shadow-sm" />
-              </div>
-            )}
+            {/* 알림/만료 배지 */}
+            <div className="absolute top-2 right-2 flex items-center gap-1">
+              {item.expiresAt && (
+                <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                  <Timer size={14} className="text-orange-500 drop-shadow-sm" />
+                </div>
+              )}
+              {item.reminderAt && (
+                <div title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                  <Bell size={14} className="text-blue-500 drop-shadow-sm" />
+                </div>
+              )}
+            </div>
           </div>
         );
       case ItemType.VIDEO:
@@ -280,12 +294,19 @@ const FeedItem: React.FC<FeedItemProps> = ({
             ) : (
               <Video size={32} className="text-white/50" />
             )}
-            {/* 알림 배지 */}
-            {item.reminderAt && (
-              <div className="absolute top-2 right-2 z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
-                <Bell size={14} className="text-blue-400 drop-shadow-sm" />
-              </div>
-            )}
+            {/* 알림/만료 배지 */}
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              {item.expiresAt && (
+                <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                  <Timer size={14} className="text-orange-400 drop-shadow-sm" />
+                </div>
+              )}
+              {item.reminderAt && (
+                <div title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                  <Bell size={14} className="text-blue-400 drop-shadow-sm" />
+                </div>
+              )}
+            </div>
           </div>
         );
       case ItemType.FILE:
@@ -296,11 +317,18 @@ const FeedItem: React.FC<FeedItemProps> = ({
         if (isAudio && fileUrl) {
           return (
             <div className="p-4 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-purple-50 to-indigo-50 text-slate-500 gap-3 relative">
-              {item.reminderAt && (
-                <div className="absolute top-2 right-2 z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
-                  <Bell size={14} className="text-blue-500" />
-                </div>
-              )}
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                {item.expiresAt && (
+                  <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                    <Timer size={14} className="text-orange-500" />
+                  </div>
+                )}
+                {item.reminderAt && (
+                  <div title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                    <Bell size={14} className="text-blue-500" />
+                  </div>
+                )}
+              </div>
               <div 
                 className="w-14 h-14 bg-white rounded-full shadow-md flex items-center justify-center text-purple-600 cursor-pointer hover:scale-105 transition-transform"
                 onClick={(e) => {
@@ -338,6 +366,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
           <div className={`p-4 flex flex-col items-center justify-center aspect-square ${fileStyle.bg} text-slate-500 gap-2 relative`}>
             {/* 우측 상단 배지들 */}
             <div className="absolute top-2 right-2 flex items-center gap-1.5">
+              {item.expiresAt && (
+                <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                  <Timer size={14} className="text-orange-500" />
+                </div>
+              )}
               {item.reminderAt && (
                 <div title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
                   <Bell size={14} className="text-blue-500" />
@@ -360,12 +393,19 @@ const FeedItem: React.FC<FeedItemProps> = ({
         if (item.ogImage) {
           return (
             <div className="flex flex-col h-full relative">
-              {/* 알림 배지 */}
-              {item.reminderAt && (
-                <div className="absolute top-2 right-2 z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
-                  <Bell size={14} className="text-blue-500" />
-                </div>
-              )}
+              {/* 알림/만료 배지 */}
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                {item.expiresAt && (
+                  <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                    <Timer size={14} className="text-orange-500" />
+                  </div>
+                )}
+                {item.reminderAt && (
+                  <div title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                    <Bell size={14} className="text-blue-500" />
+                  </div>
+                )}
+              </div>
               {/* OG Image with YouTube play overlay */}
               <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
                 <img 
@@ -470,8 +510,20 @@ const FeedItem: React.FC<FeedItemProps> = ({
                     }}
                   />
                   {item.reminderAt && (
-                    <div className="absolute top-2 right-2" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
-                      <Bell size={14} className="text-blue-500 drop-shadow-sm" />
+                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                      {item.expiresAt && (
+                        <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                          <Timer size={14} className="text-orange-500 drop-shadow-sm" />
+                        </div>
+                      )}
+                      <div title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                        <Bell size={14} className="text-blue-500 drop-shadow-sm" />
+                      </div>
+                    </div>
+                  )}
+                  {!item.reminderAt && item.expiresAt && (
+                    <div className="absolute top-2 right-2" title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                      <Timer size={14} className="text-orange-500 drop-shadow-sm" />
                     </div>
                   )}
                 </div>
@@ -500,11 +552,18 @@ const FeedItem: React.FC<FeedItemProps> = ({
         if (item.isCode) {
           return (
             <div className="relative p-3 bg-slate-900 flex flex-col h-full min-h-[100px] overflow-hidden">
-              {item.reminderAt && (
-                <div className="absolute top-2 right-2 z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
-                  <Bell size={14} className="text-blue-400" />
-                </div>
-              )}
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                {item.expiresAt && (
+                  <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                    <Timer size={14} className="text-orange-400" />
+                  </div>
+                )}
+                {item.reminderAt && (
+                  <div title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                    <Bell size={14} className="text-blue-400" />
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2 mb-2 text-slate-400">
                 <Code size={14} />
                 <span className="text-[10px] font-medium uppercase tracking-wider">Code</span>
@@ -520,11 +579,18 @@ const FeedItem: React.FC<FeedItemProps> = ({
         if (item.htmlContent) {
           return (
             <div className="relative p-4 bg-white flex flex-col h-full min-h-[100px] max-h-[200px] overflow-hidden">
-              {item.reminderAt && (
-                <div className="absolute top-2 right-2 z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
-                  <Bell size={14} className="text-blue-500" />
-                </div>
-              )}
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                {item.expiresAt && (
+                  <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                    <Timer size={14} className="text-orange-500" />
+                  </div>
+                )}
+                {item.reminderAt && (
+                  <div title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                    <Bell size={14} className="text-blue-500" />
+                  </div>
+                )}
+              </div>
               <div 
                 className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none overflow-hidden html-content-container"
                 style={{ 
@@ -556,11 +622,18 @@ const FeedItem: React.FC<FeedItemProps> = ({
         
         return (
           <div className="relative p-4 bg-white flex flex-col h-full min-h-[100px]">
-            {item.reminderAt && (
-              <div className="absolute top-2 right-2 z-10" title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
-                <Bell size={14} className="text-blue-500" />
-              </div>
-            )}
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              {item.expiresAt && (
+                <div title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                  <Timer size={14} className="text-orange-500" />
+                </div>
+              )}
+              {item.reminderAt && (
+                <div title={`알림: ${new Date(item.reminderAt).toLocaleString()}`}>
+                  <Bell size={14} className="text-blue-500" />
+                </div>
+              )}
+            </div>
             <p className="text-sm text-slate-700 whitespace-pre-wrap line-clamp-6 leading-relaxed">
               {linkifyText(item.content, "text-indigo-600 hover:text-indigo-700 hover:underline")}
             </p>
@@ -610,6 +683,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
           <p className="text-sm text-slate-800 truncate font-medium">{getDisplayText()}</p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] text-slate-400">{formattedDate}</span>
+            {item.expiresAt && (
+              <span className="flex items-center text-orange-500" title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
+                <Timer size={10} />
+              </span>
+            )}
             {item.reminderAt && (
               <span className="flex items-center text-blue-500" title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
                 <Bell size={10} fill="currentColor" />
