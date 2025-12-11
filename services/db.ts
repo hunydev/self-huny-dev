@@ -434,3 +434,29 @@ export const updateItemTitle = async (itemId: string, title: string): Promise<vo
     throw new Error('Failed to update item title');
   }
 };
+
+// Update item reminder
+export const updateItemReminder = async (itemId: string, reminderAt: number | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ reminderAt }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update item reminder');
+  }
+};
+
+// Update item expiry
+export const updateItemExpiry = async (itemId: string, expiresAt: number | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ expiresAt }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update item expiry');
+  }
+};
