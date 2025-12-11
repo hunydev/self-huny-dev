@@ -1,9 +1,9 @@
 import React from 'react';
-import { X, Check, AlertCircle, Loader2, Image, Video, FileText, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, Check, AlertCircle, Loader2, Image, Video, FileText, ChevronUp, ChevronDown, Ban } from 'lucide-react';
 import { useUpload, UploadItem } from '../contexts/UploadContext';
 
 const UploadProgress: React.FC = () => {
-  const { uploads, removeUpload, clearCompleted, hasActiveUploads } = useUpload();
+  const { uploads, removeUpload, clearCompleted, hasActiveUploads, cancelUpload } = useUpload();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   if (uploads.length === 0) return null;
@@ -26,6 +26,8 @@ const UploadProgress: React.FC = () => {
         return <Check size={14} className="text-green-500" />;
       case 'error':
         return <AlertCircle size={14} className="text-red-500" />;
+      case 'cancelled':
+        return <Ban size={14} className="text-slate-400" />;
       case 'uploading':
       case 'processing':
         return <Loader2 size={14} className="text-indigo-500 animate-spin" />;
@@ -40,6 +42,7 @@ const UploadProgress: React.FC = () => {
       case 'uploading': return `업로드 중... ${item.progress}%`;
       case 'processing': return '처리 중...';
       case 'completed': return '완료';
+      case 'cancelled': return '취소됨';
       case 'error': return item.error || '오류 발생';
     }
   };
@@ -132,8 +135,19 @@ const UploadProgress: React.FC = () => {
                   )}
                 </div>
 
+                {/* Cancel button for active uploads */}
+                {(item.status === 'uploading' || item.status === 'pending' || item.status === 'processing') && (
+                  <button
+                    onClick={() => cancelUpload(item.id)}
+                    className="p-1.5 hover:bg-red-100 rounded transition-colors group"
+                    title="업로드 취소"
+                  >
+                    <X size={14} className="text-slate-400 group-hover:text-red-500" />
+                  </button>
+                )}
+
                 {/* Remove button */}
-                {(item.status === 'completed' || item.status === 'error') && (
+                {(item.status === 'completed' || item.status === 'error' || item.status === 'cancelled') && (
                   <button
                     onClick={() => removeUpload(item.id)}
                     className="p-1 hover:bg-slate-200 rounded transition-colors"

@@ -107,6 +107,85 @@ itemsRoutes.post('/claim-orphans', async (c) => {
   }
 });
 
+// Get trash items - MUST be before /:id route
+itemsRoutes.get('/trash', async (c) => {
+  try {
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Get items that are in trash (deleted_at is set)
+    const { results } = await c.env.DB.prepare(`
+      SELECT 
+        i.*,
+        GROUP_CONCAT(it.tag_id) as tag_ids
+      FROM items i
+      LEFT JOIN item_tags it ON i.id = it.item_id
+      WHERE i.user_id = ? AND i.deleted_at IS NOT NULL
+      GROUP BY i.id
+      ORDER BY i.deleted_at DESC
+    `).bind(userId).all();
+    
+    // Transform results
+    const items = results.map((row: any) => {
+      const isEncrypted = row.is_encrypted === 1;
+      return {
+        id: row.id,
+        type: row.type,
+        content: isEncrypted ? '' : row.content,
+        htmlContent: isEncrypted ? undefined : row.html_content,
+        fileKey: (isEncrypted || row.upload_status) ? undefined : row.file_key,
+        fileName: row.file_name,
+        fileSize: row.file_size,
+        mimeType: row.mime_type,
+        title: row.title,
+        ogImage: isEncrypted ? undefined : row.og_image,
+        ogTitle: row.og_title,
+        ogDescription: isEncrypted ? undefined : row.og_description,
+        tags: row.tag_ids ? row.tag_ids.split(',') : [],
+        isFavorite: row.is_favorite === 1,
+        isEncrypted,
+        isCode: row.is_code === 1,
+        uploadStatus: row.upload_status || null,
+        createdAt: row.created_at,
+        deletedAt: row.deleted_at,
+      };
+    });
+
+    return c.json(items);
+  } catch (error) {
+    console.error('Error fetching trash items:', error);
+    return c.json({ error: 'Failed to fetch trash items' }, 500);
+  }
+});
+
+// Empty trash - MUST be before /:id route
+itemsRoutes.delete('/trash/empty', async (c) => {
+  try {
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Get all trash items with files
+    const { results } = await c.env.DB.prepare(
+      'SELECT id, file_key FROM items WHERE user_id = ? AND deleted_at IS NOT NULL'
+    ).bind(userId).all();
+
+    // Delete files from R2
+    for (const item of results) {
+      if (item.file_key) {
+        await c.env.R2_BUCKET.delete(item.file_key as string);
+      }
+    }
+
+    // Delete all trash items
+    await c.env.DB.prepare('DELETE FROM items WHERE user_id = ? AND deleted_at IS NOT NULL').bind(userId).run();
+
+    return c.json({ success: true, deleted: results.length });
+  } catch (error) {
+    console.error('Error emptying trash:', error);
+    return c.json({ error: 'Failed to empty trash' }, 500);
+  }
+});
+
 // Get all items with their tags
 itemsRoutes.get('/', async (c) => {
   const type = c.req.query('type');
@@ -127,7 +206,7 @@ itemsRoutes.get('/', async (c) => {
       LEFT JOIN item_tags it ON i.id = it.item_id
     `;
     const params: any[] = [];
-    const conditions: string[] = ['i.user_id = ?'];
+    const conditions: string[] = ['i.user_id = ?', 'i.deleted_at IS NULL'];
     params.push(userId);
 
     if (type && type !== 'all') {
@@ -453,8 +532,59 @@ itemsRoutes.put('/:id', async (c) => {
   }
 });
 
-// Delete item
+// Delete item (soft delete - move to trash)
 itemsRoutes.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Check if item exists and belongs to user
+    const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NULL').bind(id, userId).first();
+    
+    if (!item) {
+      return c.json({ error: 'Item not found' }, 404);
+    }
+
+    // Soft delete - set deleted_at timestamp
+    const deletedAt = Date.now();
+    await c.env.DB.prepare('UPDATE items SET deleted_at = ? WHERE id = ? AND user_id = ?').bind(deletedAt, id, userId).run();
+
+    return c.json({ success: true, deletedAt });
+  } catch (error) {
+    console.error('Error deleting item:', error);
+    return c.json({ error: 'Failed to delete item' }, 500);
+  }
+});
+
+// Restore item from trash
+itemsRoutes.post('/:id/restore', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const user = getUser(c);
+    const userId = user.sub;
+
+    // Check if item exists in trash
+    const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL').bind(id, userId).first();
+    
+    if (!item) {
+      return c.json({ error: 'Item not found in trash' }, 404);
+    }
+
+    // Restore item
+    await c.env.DB.prepare('UPDATE items SET deleted_at = NULL WHERE id = ? AND user_id = ?').bind(id, userId).run();
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Error restoring item:', error);
+    return c.json({ error: 'Failed to restore item' }, 500);
+  }
+});
+
+// Permanently delete item
+itemsRoutes.delete('/:id/permanent', async (c) => {
   const id = c.req.param('id');
 
   try {
@@ -473,13 +603,13 @@ itemsRoutes.delete('/:id', async (c) => {
       await c.env.R2_BUCKET.delete(item.file_key as string);
     }
 
-    // Delete item (item_tags will cascade)
+    // Permanently delete item (item_tags will cascade)
     await c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(id, userId).run();
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('Error deleting item:', error);
-    return c.json({ error: 'Failed to delete item' }, 500);
+    console.error('Error permanently deleting item:', error);
+    return c.json({ error: 'Failed to permanently delete item' }, 500);
   }
 });
 

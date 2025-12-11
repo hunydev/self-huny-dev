@@ -137,13 +137,27 @@ export type UploadProgressCallback = (progress: number) => void;
 const uploadFileWithProgress = (
   file: Blob, 
   fileName: string, 
-  onProgress?: UploadProgressCallback
+  onProgress?: UploadProgressCallback,
+  abortController?: AbortController
 ): Promise<UploadResult> => {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append('file', file, fileName);
 
     const xhr = new XMLHttpRequest();
+    
+    // Handle abort signal
+    if (abortController) {
+      abortController.signal.addEventListener('abort', () => {
+        xhr.abort();
+      });
+      
+      // Check if already aborted
+      if (abortController.signal.aborted) {
+        reject(new Error('Upload cancelled'));
+        return;
+      }
+    }
     
     xhr.upload.addEventListener('progress', (event) => {
       if (event.lengthComputable && onProgress) {
@@ -170,7 +184,7 @@ const uploadFileWithProgress = (
     });
 
     xhr.addEventListener('abort', () => {
-      reject(new Error('Upload aborted'));
+      reject(new Error('Upload cancelled'));
     });
 
     xhr.open('POST', `${API_BASE}/upload`);
@@ -188,7 +202,8 @@ const uploadFileWithProgress = (
 // Save item with optional progress tracking and encryption
 export const saveItem = async (
   item: Omit<Item, 'id' | 'createdAt'> & { encryptionKey?: string },
-  onProgress?: UploadProgressCallback
+  onProgress?: UploadProgressCallback,
+  abortController?: AbortController
 ): Promise<Item> => {
   let fileKey: string | undefined;
   let fileName: string | undefined;
@@ -200,7 +215,8 @@ export const saveItem = async (
     const uploadResult = await uploadFileWithProgress(
       item.fileBlob,
       item.fileName || 'file',
-      onProgress
+      onProgress,
+      abortController
     );
     
     fileKey = uploadResult.fileKey;
@@ -435,6 +451,62 @@ export const updateItemTitle = async (itemId: string, title: string): Promise<vo
   if (!response.ok) {
     throw new Error('Failed to update item title');
   }
+};
+
+// Get trash items
+export const getTrashItems = async (): Promise<(Item & { deletedAt?: number })[]> => {
+  const response = await fetch(`${API_BASE}/items/trash`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch trash items');
+  }
+
+  const data: (ApiItem & { deletedAt?: number })[] = await response.json();
+  return data.map(item => ({
+    ...transformItem(item),
+    deletedAt: item.deletedAt,
+  }));
+};
+
+// Restore item from trash
+export const restoreItem = async (itemId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}/restore`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to restore item');
+  }
+};
+
+// Permanently delete item
+export const permanentDeleteItem = async (itemId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}/permanent`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to permanently delete item');
+  }
+};
+
+// Empty trash
+export const emptyTrash = async (): Promise<number> => {
+  const response = await fetch(`${API_BASE}/items/trash/empty`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to empty trash');
+  }
+
+  const data = await response.json() as { deleted: number };
+  return data.deleted;
 };
 
 // Claim orphan items (items shared via PWA share target that have no user_id)

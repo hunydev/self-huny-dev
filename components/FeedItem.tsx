@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Music, Pause, Code } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Music, Pause, Code, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -100,14 +100,28 @@ const getFileCategoryStyle = (fileName?: string, mimeType?: string) => {
 interface FeedItemProps {
   item: Item;
   tags: Tag[];
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onClick: () => void;
-  onToggleFavorite: (id: string, isFavorite: boolean) => void;
+  onToggleFavorite?: (id: string, isFavorite: boolean) => void;
   onToggleEncryption?: (id: string) => void;
   compact?: boolean;
+  isTrashView?: boolean;
+  onRestore?: (id: string) => void;
+  onPermanentDelete?: (id: string) => void;
 }
 
-const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onToggleFavorite, onToggleEncryption, compact = false }) => {
+const FeedItem: React.FC<FeedItemProps> = ({ 
+  item, 
+  tags, 
+  onDelete, 
+  onClick, 
+  onToggleFavorite, 
+  onToggleEncryption, 
+  compact = false,
+  isTrashView = false,
+  onRestore,
+  onPermanentDelete,
+}) => {
   const { showToast } = useToast();
   const { settings } = useSettings();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -150,12 +164,30 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onDelete(item.id);
+    if (onDelete) {
+      onDelete(item.id);
+    }
   };
 
   const handleToggleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onToggleFavorite(item.id, !item.isFavorite);
+    if (onToggleFavorite) {
+      onToggleFavorite(item.id, !item.isFavorite);
+    }
+  };
+
+  const handleRestore = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onRestore) {
+      onRestore(item.id);
+    }
+  };
+
+  const handlePermanentDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onPermanentDelete) {
+      onPermanentDelete(item.id);
+    }
   };
 
   const handleToggleEncryption = (e: React.MouseEvent) => {
@@ -535,15 +567,36 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button 
-            onClick={handleToggleFavorite} 
-            className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
-          >
-            <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
-          </button>
-          <button onClick={handleDelete} className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded">
-            <Trash2 size={14} />
-          </button>
+          {isTrashView ? (
+            <>
+              <button 
+                onClick={handleRestore} 
+                className="p-1.5 hover:bg-emerald-50 text-slate-300 hover:text-emerald-500 rounded"
+                title="복구"
+              >
+                <RotateCcw size={14} />
+              </button>
+              <button 
+                onClick={handlePermanentDelete} 
+                className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded"
+                title="영구 삭제"
+              >
+                <Trash2 size={14} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={handleToggleFavorite} 
+                className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
+              >
+                <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
+              </button>
+              <button onClick={handleDelete} className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded">
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -582,34 +635,55 @@ const FeedItem: React.FC<FeedItemProps> = ({ item, tags, onDelete, onClick, onTo
         </div>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-          <button 
-            onClick={handleToggleFavorite} 
-            className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`} 
-            title={item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          >
-            <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
-          </button>
-          {onToggleEncryption && (
-            <button 
-              onClick={handleToggleEncryption} 
-              className={`p-1.5 rounded ${item.isEncrypted ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}
-              title={item.isEncrypted ? '암호화 해제' : '암호화'}
-            >
-              {item.isEncrypted ? <Unlock size={14} /> : <LockKeyhole size={14} />}
-            </button>
-          )}
-          {item.fileKey ? (
-            <button onClick={handleDownload} className="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="Download">
-              <Download size={14} />
-            </button>
+          {isTrashView ? (
+            <>
+              <button 
+                onClick={handleRestore} 
+                className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-500 rounded"
+                title="복구"
+              >
+                <RotateCcw size={14} />
+              </button>
+              <button 
+                onClick={handlePermanentDelete} 
+                className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded"
+                title="영구 삭제"
+              >
+                <Trash2 size={14} />
+              </button>
+            </>
           ) : (
-            <button onClick={handleCopy} className="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="Copy">
-              <Copy size={14} />
-            </button>
+            <>
+              <button 
+                onClick={handleToggleFavorite} 
+                className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`} 
+                title={item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
+              </button>
+              {onToggleEncryption && (
+                <button 
+                  onClick={handleToggleEncryption} 
+                  className={`p-1.5 rounded ${item.isEncrypted ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}
+                  title={item.isEncrypted ? '암호화 해제' : '암호화'}
+                >
+                  {item.isEncrypted ? <Unlock size={14} /> : <LockKeyhole size={14} />}
+                </button>
+              )}
+              {item.fileKey ? (
+                <button onClick={handleDownload} className="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="Download">
+                  <Download size={14} />
+                </button>
+              ) : (
+                <button onClick={handleCopy} className="p-1.5 hover:bg-slate-100 rounded text-slate-500" title="Copy">
+                  <Copy size={14} />
+                </button>
+              )}
+              <button onClick={handleDelete} className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded" title="Delete">
+                <Trash2 size={14} />
+              </button>
+            </>
           )}
-          <button onClick={handleDelete} className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded" title="Delete">
-            <Trash2 size={14} />
-          </button>
         </div>
       </div>
     </div>

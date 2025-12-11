@@ -3,6 +3,7 @@ import { Item, Tag } from '../types';
 import FeedItem from './FeedItem';
 import { format, isToday, isYesterday, startOfWeek, startOfMonth } from 'date-fns';
 import { useSettings } from '../contexts/SettingsContext';
+import { Trash2 } from 'lucide-react';
 
 interface FeedProps {
   items: Item[];
@@ -11,9 +12,24 @@ interface FeedProps {
   onItemClick: (item: Item) => void;
   onToggleFavorite: (id: string, isFavorite: boolean) => void;
   onToggleEncryption?: (id: string) => void;
+  isTrashView?: boolean;
+  onRestore?: (id: string) => void;
+  onPermanentDelete?: (id: string) => void;
+  onEmptyTrash?: () => void;
 }
 
-const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggleFavorite, onToggleEncryption }) => {
+const Feed: React.FC<FeedProps> = ({ 
+  items, 
+  tags, 
+  onDelete, 
+  onItemClick, 
+  onToggleFavorite, 
+  onToggleEncryption,
+  isTrashView = false,
+  onRestore,
+  onPermanentDelete,
+  onEmptyTrash,
+}) => {
   const { settings } = useSettings();
 
   // Group items based on settings
@@ -91,6 +107,18 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
   }, [settings.gridColumns]);
 
   if (items.length === 0) {
+    if (isTrashView) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+            <Trash2 className="w-8 h-8 text-slate-300" />
+          </div>
+          <p className="text-lg font-medium text-slate-500">휴지통이 비어 있습니다</p>
+          <p className="text-sm">삭제된 아이템이 여기에 표시됩니다.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
         <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -106,6 +134,24 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
 
   return (
     <div className="space-y-8 pb-20">
+      {/* Trash view header with empty trash button */}
+      {isTrashView && items.length > 0 && onEmptyTrash && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2 text-amber-700">
+            <Trash2 size={18} />
+            <span className="text-sm font-medium">
+              휴지통에 {items.length}개의 아이템이 있습니다
+            </span>
+          </div>
+          <button
+            onClick={onEmptyTrash}
+            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            휴지통 비우기
+          </button>
+        </div>
+      )}
+
       {sortedDates.map(dateKey => (
         <div key={dateKey}>
           <div className="flex items-center gap-2 mb-4 pl-1 py-2">
@@ -124,11 +170,14 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
                   key={item.id} 
                   item={item} 
                   tags={tags} 
-                  onDelete={onDelete}
+                  onDelete={isTrashView ? undefined : onDelete}
                   onClick={() => onItemClick(item)}
-                  onToggleFavorite={onToggleFavorite}
-                  onToggleEncryption={onToggleEncryption}
+                  onToggleFavorite={isTrashView ? undefined : onToggleFavorite}
+                  onToggleEncryption={isTrashView ? undefined : onToggleEncryption}
                   compact={true}
+                  isTrashView={isTrashView}
+                  onRestore={onRestore}
+                  onPermanentDelete={onPermanentDelete}
                 />
               ))}
             </div>
@@ -140,11 +189,14 @@ const Feed: React.FC<FeedProps> = ({ items, tags, onDelete, onItemClick, onToggl
                   key={item.id} 
                   item={item} 
                   tags={tags} 
-                  onDelete={onDelete}
+                  onDelete={isTrashView ? undefined : onDelete}
                   onClick={() => onItemClick(item)}
-                  onToggleFavorite={onToggleFavorite}
-                  onToggleEncryption={onToggleEncryption}
+                  onToggleFavorite={isTrashView ? undefined : onToggleFavorite}
+                  onToggleEncryption={isTrashView ? undefined : onToggleEncryption}
                   compact={false}
+                  isTrashView={isTrashView}
+                  onRestore={onRestore}
+                  onPermanentDelete={onPermanentDelete}
                 />
               ))}
             </div>

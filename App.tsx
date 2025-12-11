@@ -26,8 +26,9 @@ interface ShareChoiceData {
 // Authenticated app content
 const AuthenticatedContent: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
+  const [trashItems, setTrashItems] = useState<(Item & { deletedAt?: number })[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [activeFilter, setActiveFilter] = useState<ItemType | 'all' | 'favorites'>('all');
+  const [activeFilter, setActiveFilter] = useState<ItemType | 'all' | 'favorites' | 'encrypted' | 'trash'>('all');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,8 +46,8 @@ const AuthenticatedContent: React.FC = () => {
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
   const inputAreaRef = useRef<InputAreaHandle>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { showToast } = useToast();
-  const { addUpload, updateUpload } = useUpload();
+  const { showToast, showUndoToast } = useToast();
+  const { addUpload, updateUpload, registerAbortController } = useUpload();
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -63,6 +64,23 @@ const AuthenticatedContent: React.FC = () => {
       setIsLoading(false);
     }
   }, []);
+
+  // Load trash items when trash filter is selected
+  const loadTrashItems = useCallback(async () => {
+    try {
+      const loadedTrashItems = await db.getTrashItems();
+      setTrashItems(loadedTrashItems);
+    } catch (err) {
+      console.error("Failed to load trash items", err);
+    }
+  }, []);
+
+  // Load trash items when filter changes to trash
+  useEffect(() => {
+    if (activeFilter === 'trash') {
+      loadTrashItems();
+    }
+  }, [activeFilter, loadTrashItems]);
 
   // Manual refresh function with loading indicator
   const handleRefresh = useCallback(async () => {
@@ -345,6 +363,7 @@ const AuthenticatedContent: React.FC = () => {
         title,
         tags: autoTags,
         isFavorite: false,
+        isEncrypted: false,
       });
       setItems(prev => [newItem, ...prev]);
       setShareChoiceData(null);
@@ -388,10 +407,12 @@ const AuthenticatedContent: React.FC = () => {
     );
 
     let uploadId: string | null = null;
+    let abortController: AbortController | null = null;
 
     // If file upload, add to upload queue
     if (isFileUpload && draft.fileBlob) {
       uploadId = crypto.randomUUID();
+      abortController = new AbortController();
       
       // Create preview URL for images/videos
       let previewUrl: string | undefined;
@@ -407,6 +428,9 @@ const AuthenticatedContent: React.FC = () => {
         previewUrl,
       });
 
+      // Register abort controller for cancellation
+      registerAbortController(uploadId, abortController);
+
       // Update status to uploading
       updateUpload(uploadId, { status: 'uploading' });
     }
@@ -416,7 +440,7 @@ const AuthenticatedContent: React.FC = () => {
         if (uploadId) {
           updateUpload(uploadId, { progress, status: 'uploading' });
         }
-      });
+      }, abortController || undefined);
 
       // Update status to processing briefly, then completed
       if (uploadId) {
@@ -432,24 +456,103 @@ const AuthenticatedContent: React.FC = () => {
       console.error("Failed to save item", err);
       
       if (uploadId) {
+        // Check if it was cancelled
+        const isCancelled = err instanceof Error && err.message === 'Upload cancelled';
         updateUpload(uploadId, { 
-          status: 'error', 
-          error: err instanceof Error ? err.message : '업로드 실패'
+          status: isCancelled ? 'cancelled' : 'error', 
+          error: isCancelled ? '업로드가 취소되었습니다' : (err instanceof Error ? err.message : '업로드 실패')
         });
+        
+        if (!isCancelled) {
+          showToast('아이템 추가에 실패했습니다', 'error');
+        }
+      } else {
+        showToast('아이템 추가에 실패했습니다', 'error');
       }
-      
-      showToast('아이템 추가에 실패했습니다', 'error');
     }
   };
 
   const handleDeleteItem = async (id: string) => {
+    // Find the item before deleting to show in undo toast
+    const itemToDelete = items.find(i => i.id === id);
+    if (!itemToDelete) return;
+
     try {
-      await db.deleteItem(id);
+      // Optimistically remove from UI
       setItems(prev => prev.filter(i => i.id !== id));
-      showToast('아이템이 삭제되었습니다', 'success');
+      
+      // Call soft delete API
+      await db.deleteItem(id);
+      
+      // Show undo toast
+      showUndoToast(
+        `'${itemToDelete.title || itemToDelete.fileName || '아이템'}'이(가) 휴지통으로 이동되었습니다`,
+        async () => {
+          try {
+            // Restore the item
+            await db.restoreItem(id);
+            // Add it back to the list
+            setItems(prev => [itemToDelete, ...prev]);
+            showToast('아이템이 복구되었습니다', 'success');
+          } catch (err) {
+            console.error("Failed to restore item", err);
+            showToast('아이템 복구에 실패했습니다', 'error');
+          }
+        }
+      );
     } catch (err) {
       console.error("Failed to delete item", err);
+      // Restore the item in UI if delete failed
+      setItems(prev => [itemToDelete, ...prev]);
       showToast('아이템 삭제에 실패했습니다', 'error');
+    }
+  };
+
+  // Restore item from trash
+  const handleRestoreItem = async (id: string) => {
+    const itemToRestore = trashItems.find(i => i.id === id);
+    if (!itemToRestore) return;
+
+    try {
+      await db.restoreItem(id);
+      // Remove from trash items
+      setTrashItems(prev => prev.filter(i => i.id !== id));
+      // Add back to main items (without deletedAt)
+      const { deletedAt, ...restoredItem } = itemToRestore;
+      setItems(prev => [restoredItem, ...prev]);
+      showToast('아이템이 복구되었습니다', 'success');
+    } catch (err) {
+      console.error("Failed to restore item", err);
+      showToast('아이템 복구에 실패했습니다', 'error');
+    }
+  };
+
+  // Permanently delete item from trash
+  const handlePermanentDelete = async (id: string) => {
+    const itemToDelete = trashItems.find(i => i.id === id);
+    if (!itemToDelete) return;
+
+    try {
+      await db.permanentDeleteItem(id);
+      setTrashItems(prev => prev.filter(i => i.id !== id));
+      showToast('아이템이 영구 삭제되었습니다', 'success');
+    } catch (err) {
+      console.error("Failed to permanently delete item", err);
+      showToast('아이템 삭제에 실패했습니다', 'error');
+    }
+  };
+
+  // Empty entire trash
+  const handleEmptyTrash = async () => {
+    if (trashItems.length === 0) return;
+
+    try {
+      const count = await db.emptyTrash();
+      setTrashItems([]);
+      showToast(`${count}개의 아이템이 영구 삭제되었습니다`, 'success');
+    } catch (err) {
+      console.error("Failed to empty trash", err);
+      showToast('휴지통 비우기에 실패했습니다', 'error');
     }
   };
 
@@ -611,6 +714,11 @@ const AuthenticatedContent: React.FC = () => {
 
   // Filtered items based on type, tag, and search
   const filteredItems = useMemo(() => {
+    // For trash view, return trash items
+    if (activeFilter === 'trash') {
+      return trashItems;
+    }
+
     let result = items;
     
     // Filter by favorites
@@ -642,7 +750,7 @@ const AuthenticatedContent: React.FC = () => {
     }
     
     return result;
-  }, [items, activeFilter, activeTagFilter, searchQuery]);
+  }, [items, trashItems, activeFilter, activeTagFilter, searchQuery]);
 
   // Calculate item counts for sidebar
   const itemCounts = useMemo(() => {
@@ -650,6 +758,7 @@ const AuthenticatedContent: React.FC = () => {
       all: items.length,
       favorites: items.filter(i => i.isFavorite).length,
       encrypted: items.filter(i => i.isEncrypted).length,
+      trash: trashItems.length,
       [ItemType.TEXT]: items.filter(i => i.type === ItemType.TEXT).length,
       [ItemType.LINK]: items.filter(i => i.type === ItemType.LINK).length,
       [ItemType.IMAGE]: items.filter(i => i.type === ItemType.IMAGE).length,
@@ -859,22 +968,24 @@ const AuthenticatedContent: React.FC = () => {
         </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scroll-smooth">
-          {/* Sticky Input Area - positioned at top of scroll container */}
-          <div className="sticky top-0 z-20 px-4 lg:px-8 pt-4 lg:pt-6 pb-4">
-            <div className="max-w-3xl mx-auto w-full">
-              <div className="shadow-lg shadow-slate-900/10 rounded-xl">
-                <InputArea 
-                  ref={inputAreaRef}
-                  onSave={handleSaveItem} 
-                  availableTags={tags}
-                  autoFocus={shouldAutoFocus}
-                  onAddTag={handleAddTag}
-                  onDeleteTag={handleDeleteTag}
-                  activeTagFilter={activeTagFilter}
-                />
+          {/* Sticky Input Area - positioned at top of scroll container (hidden in trash view) */}
+          {activeFilter !== 'trash' && (
+            <div className="sticky top-0 z-20 px-4 lg:px-8 pt-4 lg:pt-6 pb-4">
+              <div className="max-w-3xl mx-auto w-full">
+                <div className="shadow-lg shadow-slate-900/10 rounded-xl">
+                  <InputArea 
+                    ref={inputAreaRef}
+                    onSave={handleSaveItem} 
+                    availableTags={tags}
+                    autoFocus={shouldAutoFocus}
+                    onAddTag={handleAddTag}
+                    onDeleteTag={handleDeleteTag}
+                    activeTagFilter={activeTagFilter}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="max-w-7xl mx-auto">
             {/* Active filter indicator */}
@@ -914,6 +1025,10 @@ const AuthenticatedContent: React.FC = () => {
                 onItemClick={setSelectedItem}
                 onToggleFavorite={handleToggleFavorite}
                 onToggleEncryption={handleOpenEncryptionModal}
+                isTrashView={activeFilter === 'trash'}
+                onRestore={handleRestoreItem}
+                onPermanentDelete={handlePermanentDelete}
+                onEmptyTrash={handleEmptyTrash}
               />
             </div>
           </div>

@@ -16,13 +16,14 @@ import {
   Zap,
   LockKeyhole,
   Code2,
-  Info
+  Info,
+  Trash2
 } from 'lucide-react';
 import { NavItem, ItemType, Tag } from '../types';
 
 interface SidebarProps {
-  activeFilter: ItemType | 'all' | 'favorites' | 'encrypted';
-  onFilterChange: (type: ItemType | 'all' | 'favorites' | 'encrypted') => void;
+  activeFilter: ItemType | 'all' | 'favorites' | 'encrypted' | 'trash';
+  onFilterChange: (type: ItemType | 'all' | 'favorites' | 'encrypted' | 'trash') => void;
   activeTagFilter: string | null;
   onTagFilterChange: (tagId: string | null) => void;
   tags: Tag[];
@@ -73,6 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'image', label: 'Images', icon: <ImageIcon size={18} />, filterType: ItemType.IMAGE },
     { id: 'video', label: 'Videos', icon: <Video size={18} />, filterType: ItemType.VIDEO },
     { id: 'file', label: 'Files', icon: <FileIcon size={18} />, filterType: ItemType.FILE },
+    { id: 'trash', label: 'Trash', icon: <Trash2 size={18} />, filterType: 'trash' as any },
   ];
 
   const openTagModal = (tag?: Tag) => {
