@@ -1207,26 +1207,28 @@ const AuthenticatedContent: React.FC = () => {
         </div>
 
         <div ref={scrollContainerRef} className={`flex-1 overflow-y-auto scroll-smooth ${activeFilter === 'scheduled' ? 'flex flex-col' : ''}`}>
-          {/* Sticky Input Area - floats over content without pushing items (hidden in trash and expiring view) */}
+          {/* Floating Input Area - absolutely positioned to not affect content flow (hidden in trash and expiring view) */}
           {activeFilter !== 'trash' && activeFilter !== 'expiring' && (
-            <div className="sticky top-0 z-20 px-4 lg:px-8 pt-4 lg:pt-6 pb-4 pointer-events-none">
-              <div className="max-w-3xl mx-auto w-full pointer-events-auto">
-                <div className="shadow-lg shadow-slate-900/10 rounded-xl">
-                  <InputArea 
-                    ref={inputAreaRef}
-                    onSave={handleSaveItem} 
-                    availableTags={tags}
-                    autoFocus={shouldAutoFocus}
-                    onAddTag={handleAddTag}
-                    onDeleteTag={handleDeleteTag}
-                    activeTagFilter={activeTagFilter}
-                  />
+            <div className="sticky top-0 z-20 h-0 overflow-visible pointer-events-none">
+              <div className="px-4 lg:px-8 pt-4 lg:pt-6 pb-4">
+                <div className="max-w-3xl mx-auto w-full pointer-events-auto">
+                  <div className="shadow-lg shadow-slate-900/10 rounded-xl">
+                    <InputArea 
+                      ref={inputAreaRef}
+                      onSave={handleSaveItem} 
+                      availableTags={tags}
+                      autoFocus={shouldAutoFocus}
+                      onAddTag={handleAddTag}
+                      onDeleteTag={handleDeleteTag}
+                      activeTagFilter={activeTagFilter}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          <div className={`${activeFilter === 'scheduled' ? 'flex-1 flex flex-col' : 'max-w-7xl mx-auto'} ${activeFilter !== 'trash' && activeFilter !== 'expiring' ? '-mt-16 pt-16' : ''}`}>
+          <div className={`${activeFilter === 'scheduled' ? 'flex-1 flex flex-col' : 'max-w-7xl mx-auto'} ${activeFilter !== 'trash' && activeFilter !== 'expiring' ? 'pt-20 lg:pt-24' : ''}`}>
             {/* Active filter indicator */}
             {(activeTagFilter || searchQuery) && activeFilter !== 'scheduled' && (
               <div className="px-4 lg:px-8 pt-4 pb-2">
@@ -1274,6 +1276,7 @@ const AuthenticatedContent: React.FC = () => {
                   onToggleFavorite={handleToggleFavorite}
                   onToggleEncryption={handleOpenEncryptionModal}
                   isTrashView={activeFilter === 'trash'}
+                  isExpiringView={activeFilter === 'expiring'}
                   onRestore={handleRestoreItem}
                   onPermanentDelete={handlePermanentDelete}
                   onEmptyTrash={handleEmptyTrash}

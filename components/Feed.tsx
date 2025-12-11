@@ -3,7 +3,7 @@ import { Item, Tag } from '../types';
 import FeedItem from './FeedItem';
 import { format, isToday, isYesterday, startOfWeek, startOfMonth } from 'date-fns';
 import { useSettings } from '../contexts/SettingsContext';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Timer } from 'lucide-react';
 
 interface FeedProps {
   items: Item[];
@@ -13,6 +13,7 @@ interface FeedProps {
   onToggleFavorite: (id: string, isFavorite: boolean) => void;
   onToggleEncryption?: (id: string) => void;
   isTrashView?: boolean;
+  isExpiringView?: boolean;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
   onEmptyTrash?: () => void;
@@ -26,6 +27,7 @@ const Feed: React.FC<FeedProps> = ({
   onToggleFavorite, 
   onToggleEncryption,
   isTrashView = false,
+  isExpiringView = false,
   onRestore,
   onPermanentDelete,
   onEmptyTrash,
@@ -119,6 +121,18 @@ const Feed: React.FC<FeedProps> = ({
       );
     }
 
+    if (isExpiringView) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+            <Timer className="w-8 h-8 text-slate-300" />
+          </div>
+          <p className="text-lg font-medium text-slate-500">만료 예정 아이템이 없습니다</p>
+          <p className="text-sm">만료 기간이 설정된 아이템이 여기에 표시됩니다.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
         <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -128,6 +142,88 @@ const Feed: React.FC<FeedProps> = ({
         </div>
         <p className="text-lg font-medium text-slate-500">No items yet</p>
         <p className="text-sm">Paste something or drop a file to get started.</p>
+      </div>
+    );
+  }
+
+  // Helper function to format remaining time until expiry
+  const formatExpiryTime = (expiresAt: number) => {
+    const now = Date.now();
+    const diffMs = expiresAt - now;
+    
+    if (diffMs < 0) return '만료됨';
+    
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMinutes < 60) return `${diffMinutes}분 후 만료`;
+    if (diffHours < 24) return `${diffHours}시간 후 만료`;
+    if (diffDays < 7) return `${diffDays}일 후 만료`;
+    return `${format(new Date(expiresAt), 'MM월 dd일')} 만료`;
+  };
+
+  // Expiring view - flat list sorted by expiry time (soonest first)
+  if (isExpiringView) {
+    return (
+      <div className="space-y-4 pb-20">
+        <div className="flex items-center gap-2 mb-4 pl-1 py-2">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            만료 예정
+          </h2>
+          <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full font-medium">
+            {items.length}
+          </span>
+        </div>
+        {settings.compactMode ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {items.map(item => (
+              <div key={item.id} className="relative">
+                <FeedItem 
+                  item={item} 
+                  tags={tags} 
+                  onDelete={onDelete}
+                  onClick={() => onItemClick(item)}
+                  onToggleFavorite={onToggleFavorite}
+                  onToggleEncryption={onToggleEncryption}
+                  compact={true}
+                  isTrashView={false}
+                  onRestore={onRestore}
+                  onPermanentDelete={onPermanentDelete}
+                />
+                {item.expiresAt && (
+                  <div className="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-700 rounded-full">
+                    {formatExpiryTime(item.expiresAt)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={`grid ${gridColsClass} gap-4 items-start`}>
+            {items.map(item => (
+              <div key={item.id} className="relative">
+                <FeedItem 
+                  item={item} 
+                  tags={tags} 
+                  onDelete={onDelete}
+                  onClick={() => onItemClick(item)}
+                  onToggleFavorite={onToggleFavorite}
+                  onToggleEncryption={onToggleEncryption}
+                  compact={false}
+                  isTrashView={false}
+                  onRestore={onRestore}
+                  onPermanentDelete={onPermanentDelete}
+                />
+                {item.expiresAt && (
+                  <div className="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-700 rounded-full z-10">
+                    {formatExpiryTime(item.expiresAt)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

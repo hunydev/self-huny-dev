@@ -252,6 +252,7 @@ export const saveItem = async (
       isEncrypted: item.isEncrypted,
       isCode: item.isCode,
       reminderAt: item.reminderAt,
+      expiresAt: item.expiresAt,
       encryptionHash,
     }),
   });
