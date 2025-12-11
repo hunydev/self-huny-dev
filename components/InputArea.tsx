@@ -694,20 +694,21 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               </button>
               
               {showExpiryPicker && (
-                <div className="absolute bottom-full mb-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-48">
+                <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-48">
                   <div className="text-sm font-medium text-slate-700 mb-2">만료 기간</div>
                   <div className="space-y-1">
                     {[
-                      { label: '1일', days: 1 },
-                      { label: '1주일', days: 7 },
-                      { label: '1개월', days: 30 },
-                      { label: '1년', days: 365 },
-                    ].map(({ label, days }) => (
+                      { label: '1시간', hours: 1 },
+                      { label: '1일', hours: 24 },
+                      { label: '1주일', hours: 168 },
+                      { label: '1개월', hours: 720 },
+                      { label: '1년', hours: 8760 },
+                    ].map(({ label, hours }) => (
                       <button
                         key={label}
                         type="button"
                         onClick={() => {
-                          setExpiresAt(Date.now() + days * 24 * 60 * 60 * 1000);
+                          setExpiresAt(Date.now() + hours * 60 * 60 * 1000);
                           setShowExpiryPicker(false);
                         }}
                         className="w-full px-3 py-2 text-sm text-left hover:bg-slate-100 text-slate-600 rounded-lg"

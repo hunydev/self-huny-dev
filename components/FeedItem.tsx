@@ -747,7 +747,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
 
   return (
     <div 
-      className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer"
+      className={`group relative bg-white rounded-xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col cursor-pointer ${
+        item.isFavorite 
+          ? 'border-amber-300 shadow-amber-200/50 ring-1 ring-amber-200' 
+          : 'border-slate-200'
+      }`}
       onClick={onClick}
     >
       {/* Header / Meta */}

@@ -3,7 +3,6 @@ import { Item, Tag } from '../types';
 import { ChevronLeft, ChevronRight, Bell, Calendar, FileText, Image as ImageIcon, Video, File as FileIcon, Link as LinkIcon } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, isToday, startOfDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { getFileUrl } from '../services/db';
 
 interface ScheduledViewProps {
   items: Item[];
@@ -45,40 +44,12 @@ const getTypeIcon = (type: string) => {
   }
 };
 
-// 캘린더 셀용 아이템 썸네일
+// 캘린더 셀용 아이템 썸네일 - 타입 아이콘만 표시
 const ItemThumbnail: React.FC<{ item: Item; onClick: (e: React.MouseEvent) => void }> = ({ item, onClick }) => {
-  const fileUrl = item.fileKey ? getFileUrl(item.fileKey) : null;
-  
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onClick(e);
   };
-  
-  // 이미지 아이템
-  if (item.type === 'image' && fileUrl) {
-    return (
-      <button
-        onClick={handleClick}
-        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:scale-125 hover:shadow-md hover:z-10 transition-all duration-150 shrink-0"
-        title={item.title || item.fileName || '이미지'}
-      >
-        <img src={fileUrl} alt="" className="w-full h-full object-cover" />
-      </button>
-    );
-  }
-  
-  // OG 이미지가 있는 경우
-  if (item.ogImage) {
-    return (
-      <button
-        onClick={handleClick}
-        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:scale-125 hover:shadow-md hover:z-10 transition-all duration-150 shrink-0"
-        title={item.title || item.ogTitle || 'Link'}
-      >
-        <img src={item.ogImage} alt="" className="w-full h-full object-cover" />
-      </button>
-    );
-  }
   
   // 타입별 아이콘
   const iconBgMap: Record<string, string> = {
