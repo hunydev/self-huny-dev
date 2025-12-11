@@ -158,6 +158,102 @@ const AuthenticatedContent: React.FC = () => {
     };
   }, [loadData]);
 
+  // Process pending uploads from Service Worker
+  const processPendingUploads = useCallback(async (pendingId?: string) => {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+      console.log('[PendingUpload] No service worker controller');
+      return;
+    }
+
+    try {
+      // Get pending uploads from SW via MessageChannel
+      const messageChannel = new MessageChannel();
+      const uploadsPromise = new Promise<{ id: string; files: { name: string; type: string; size: number; data: ArrayBuffer }[]; title?: string }[]>((resolve) => {
+        messageChannel.port1.onmessage = (event: MessageEvent) => {
+          resolve(event.data?.uploads || []);
+        };
+        setTimeout(() => resolve([]), 3000);
+      });
+
+      navigator.serviceWorker.controller.postMessage({ type: 'GET_PENDING_UPLOADS' }, [messageChannel.port2]);
+      
+      const uploads = await uploadsPromise;
+      console.log('[PendingUpload] Got uploads from SW:', uploads.length);
+
+      // Filter to specific pendingId if provided
+      const toProcess = pendingId 
+        ? uploads.filter(u => u.id === pendingId)
+        : uploads;
+
+      for (const upload of toProcess) {
+        console.log('[PendingUpload] Processing:', upload.id, 'files:', upload.files.length);
+        
+        for (const file of upload.files) {
+          const uploadId = `sw-${upload.id}-${file.name}`;
+          const fileType = file.type?.startsWith('image/') ? 'image' 
+            : file.type?.startsWith('video/') ? 'video' 
+            : 'file';
+          
+          // Add to upload progress UI
+          addUpload({
+            id: uploadId,
+            fileName: file.name,
+            fileSize: file.size,
+            type: fileType,
+          });
+          
+          try {
+            // Convert ArrayBuffer to Blob
+            const blob = new Blob([file.data], { type: file.type });
+            
+            // Create FormData for upload
+            const formData = new FormData();
+            formData.append('file', blob, file.name);
+            if (upload.title) {
+              formData.append('title', upload.title);
+            }
+            
+            updateUpload(uploadId, { status: 'uploading', progress: 10 });
+            
+            // Upload to API
+            const token = localStorage.getItem('auth_token');
+            const headers: HeadersInit = {};
+            if (token) {
+              headers['Authorization'] = `Bearer ${token}`;
+            }
+            
+            const response = await fetch('/api/share', {
+              method: 'POST',
+              headers,
+              body: formData,
+            });
+            
+            if (response.ok) {
+              updateUpload(uploadId, { status: 'completed', progress: 100 });
+              console.log('[PendingUpload] Upload successful:', file.name);
+            } else {
+              throw new Error(`Upload failed: ${response.status}`);
+            }
+          } catch (err) {
+            console.error('[PendingUpload] Upload error:', err);
+            updateUpload(uploadId, { status: 'error', error: String(err) });
+          }
+        }
+        
+        // Delete from IndexedDB
+        navigator.serviceWorker.controller?.postMessage({ type: 'DELETE_PENDING_UPLOAD', id: upload.id });
+      }
+      
+      // Reload items after processing
+      if (toProcess.length > 0) {
+        await loadData();
+        showToast('파일 공유가 완료되었습니다', 'success');
+      }
+    } catch (err) {
+      console.error('[PendingUpload] Error:', err);
+    }
+  }, [addUpload, updateUpload, loadData, showToast]);
+
   // Load initial data and check share status
   useEffect(() => {
     loadData();
@@ -169,6 +265,15 @@ const AuthenticatedContent: React.FC = () => {
     const shareMode = params.get('share_mode');
     const shareContent = params.get('share_content');
     const shareTitle = params.get('share_title');
+    const pendingId = params.get('pendingId');
+    
+    // Handle pending upload from Service Worker
+    if (pendingId) {
+      console.log('[Share] Processing pending upload from SW:', pendingId);
+      processPendingUploads(pendingId);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
     
     if (shared) {
       setShareStatus(shared);
@@ -230,7 +335,7 @@ const AuthenticatedContent: React.FC = () => {
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [loadData]);
+  }, [loadData, processPendingUploads]);
 
   // Auto-match tags based on keywords
   const getAutoMatchedTags = useCallback((content: string, title?: string): string[] => {
