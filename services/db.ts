@@ -19,6 +19,7 @@ interface ApiItem {
   isFavorite: boolean;
   isEncrypted: boolean;
   isCode?: boolean;
+  reminderAt?: number;
   uploadStatus?: 'uploading' | 'failed' | null;
   createdAt: number;
 }
@@ -72,6 +73,7 @@ const transformItem = (apiItem: ApiItem): Item => ({
   isFavorite: apiItem.isFavorite || false,
   isEncrypted: apiItem.isEncrypted || false,
   isCode: apiItem.isCode || false,
+  reminderAt: apiItem.reminderAt,
   uploadStatus: apiItem.uploadStatus,
   createdAt: apiItem.createdAt,
 });
@@ -247,6 +249,7 @@ export const saveItem = async (
       tags: item.tags,
       isEncrypted: item.isEncrypted,
       isCode: item.isCode,
+      reminderAt: item.reminderAt,
       encryptionHash,
     }),
   });
@@ -522,4 +525,31 @@ export const claimOrphanItems = async (): Promise<{ claimed: number }> => {
   }
 
   return response.json();
+};
+
+// Get scheduled items (items with reminders)
+export const getScheduledItems = async (): Promise<Item[]> => {
+  const response = await fetch(`${API_BASE}/items/scheduled`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch scheduled items');
+  }
+
+  const data: ApiItem[] = await response.json();
+  return data.map(transformItem);
+};
+
+// Update item reminder
+export const updateItemReminder = async (itemId: string, reminderAt: number | null): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ reminderAt }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update item reminder');
+  }
 };

@@ -32,6 +32,7 @@ export interface Item {
   isCode?: boolean; // Code block flag
   htmlContent?: string; // Rich HTML content with formatting
   uploadStatus?: 'uploading' | 'failed' | null; // Background upload status (null = completed)
+  reminderAt?: number; // Reminder timestamp (for scheduled items)
   createdAt: number;
 }
 

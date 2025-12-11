@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2, ZoomIn, ZoomOut, MoveHorizontal, RotateCcw } from 'lucide-react';
-import { getFileUrl, unlockItem, toggleEncryption, updateItemTitle } from '../services/db';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2, ZoomIn, ZoomOut, MoveHorizontal, RotateCcw, Bell } from 'lucide-react';
+import { getFileUrl, unlockItem, updateItemTitle, updateItemReminder } from '../services/db';
 import { suggestTitle } from '../services/geminiService';
 import { linkifyText } from '../utils/linkify';
 import FilePreviewModal from './FilePreviewModal';
@@ -67,13 +67,18 @@ interface ItemModalProps {
   onUpdateTags: (itemId: string, tagIds: string[]) => void;
   onToggleEncryption?: (id: string) => void;
   onUpdateTitle?: (itemId: string, title: string) => void;
+  onUpdateReminder?: (itemId: string, reminderAt: number | null) => void;
 }
 
-const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags, onToggleEncryption, onUpdateTitle }) => {
+const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUpdateTags, onToggleEncryption, onUpdateTitle, onUpdateReminder }) => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
+  
+  // 리마인더 상태
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
+  const reminderPickerRef = useRef<HTMLDivElement>(null);
   
   // 제목 편집 상태
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -165,6 +170,33 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       setIsSuggestingTitle(false);
     }
   };
+
+  // 리마인더 설정 핸들러
+  const handleSetReminder = async (reminderAt: number | null) => {
+    if (!item) return;
+    try {
+      await updateItemReminder(item.id, reminderAt);
+      if (onUpdateReminder) {
+        onUpdateReminder(item.id, reminderAt);
+      }
+      setShowReminderPicker(false);
+    } catch (error) {
+      console.error('Failed to set reminder:', error);
+    }
+  };
+
+  // 리마인더 피커 외부 클릭 처리
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (reminderPickerRef.current && !reminderPickerRef.current.contains(e.target as Node)) {
+        setShowReminderPicker(false);
+      }
+    };
+    if (showReminderPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showReminderPicker]);
 
   // Reset when item changes
   useEffect(() => {
@@ -826,6 +858,68 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {/* 리마인더 버튼 */}
+            {!isLocked && (
+              <div className="relative" ref={reminderPickerRef}>
+                <button
+                  onClick={() => setShowReminderPicker(!showReminderPicker)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    item.reminderAt
+                      ? 'text-blue-500 hover:bg-blue-50'
+                      : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50'
+                  }`}
+                  title={item.reminderAt ? `알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}` : '알림 설정'}
+                >
+                  <Bell size={20} />
+                </button>
+                
+                {showReminderPicker && (
+                  <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-64">
+                    <div className="text-sm font-medium text-slate-700 mb-2">알림 설정</div>
+                    <div className="space-y-2">
+                      <input
+                        type="datetime-local"
+                        value={item.reminderAt ? new Date(item.reminderAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleSetReminder(new Date(e.target.value).getTime());
+                          } else {
+                            handleSetReminder(null);
+                          }
+                        }}
+                        min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                        className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: '1시간 후', hours: 1 },
+                          { label: '내일', hours: 24 },
+                          { label: '1주일 후', hours: 168 },
+                        ].map(({ label, hours }) => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => handleSetReminder(Date.now() + hours * 60 * 60 * 1000)}
+                            className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {item.reminderAt && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetReminder(null)}
+                          className="w-full mt-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg"
+                        >
+                          알림 삭제
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* 암호화 토글 버튼 */}
             {onToggleEncryption && !isLocked && (
               <button

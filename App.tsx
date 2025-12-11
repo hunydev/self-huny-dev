@@ -27,8 +27,9 @@ interface ShareChoiceData {
 const AuthenticatedContent: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [trashItems, setTrashItems] = useState<(Item & { deletedAt?: number })[]>([]);
+  const [scheduledItems, setScheduledItems] = useState<Item[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [activeFilter, setActiveFilter] = useState<ItemType | 'all' | 'favorites' | 'encrypted' | 'trash'>('all');
+  const [activeFilter, setActiveFilter] = useState<ItemType | 'all' | 'favorites' | 'encrypted' | 'trash' | 'scheduled'>('all');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,12 +76,24 @@ const AuthenticatedContent: React.FC = () => {
     }
   }, []);
 
+  // Load scheduled items function
+  const loadScheduledItems = useCallback(async () => {
+    try {
+      const loadedScheduledItems = await db.getScheduledItems();
+      setScheduledItems(loadedScheduledItems);
+    } catch (err) {
+      console.error("Failed to load scheduled items", err);
+    }
+  }, []);
+
   // Load trash items when filter changes to trash
   useEffect(() => {
     if (activeFilter === 'trash') {
       loadTrashItems();
+    } else if (activeFilter === 'scheduled') {
+      loadScheduledItems();
     }
-  }, [activeFilter, loadTrashItems]);
+  }, [activeFilter, loadTrashItems, loadScheduledItems]);
 
   // Manual refresh function with loading indicator
   const handleRefresh = useCallback(async () => {
@@ -237,6 +250,54 @@ const AuthenticatedContent: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [loadData]);
+
+  // Check for due reminders and show notifications
+  const notifiedReminders = useRef<Set<string>>(new Set());
+  
+  useEffect(() => {
+    // Request notification permission on mount if not already granted
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = Date.now();
+      items.forEach(item => {
+        if (item.reminderAt && item.reminderAt <= now && !notifiedReminders.current.has(item.id)) {
+          notifiedReminders.current.add(item.id);
+          
+          // Show browser notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const title = item.title || (item.type === 'text' ? item.content.slice(0, 50) : item.fileName) || '알림';
+            const notification = new Notification('📅 일정 알림', {
+              body: title,
+              icon: '/icons/icon-192.png',
+              tag: item.id,
+              data: { itemId: item.id },
+            });
+            
+            notification.onclick = () => {
+              window.focus();
+              setSelectedItem(item);
+              notification.close();
+            };
+          }
+          
+          // Also show in-app toast
+          showToast(`일정: ${item.title || item.content?.slice(0, 30) || '알림'}`, 'info');
+        }
+      });
+    };
+
+    // Check immediately
+    checkReminders();
+    
+    // Check every minute
+    const interval = setInterval(checkReminders, 60000);
+    return () => clearInterval(interval);
+  }, [items, showToast]);
 
   // Load initial data and check share status - runs only once on mount
   useEffect(() => {
@@ -636,6 +697,21 @@ const AuthenticatedContent: React.FC = () => {
     showToast('제목이 업데이트되었습니다', 'success');
   };
 
+  // 리마인더 업데이트
+  const handleUpdateReminder = (itemId: string, reminderAt: number | null) => {
+    setItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, reminderAt: reminderAt ?? undefined } : item
+    ));
+    if (selectedItem?.id === itemId) {
+      setSelectedItem(prev => prev ? { ...prev, reminderAt: reminderAt ?? undefined } : null);
+    }
+    // 스케줄 목록도 업데이트
+    if (activeFilter === 'scheduled') {
+      loadScheduledItems();
+    }
+    showToast(reminderAt ? '알림이 설정되었습니다' : '알림이 삭제되었습니다', 'success');
+  };
+
   // 암호화 토글 모달 열기
   const handleOpenEncryptionModal = (itemId: string) => {
     const item = items.find(i => i.id === itemId);
@@ -719,6 +795,11 @@ const AuthenticatedContent: React.FC = () => {
       return trashItems;
     }
 
+    // For scheduled view, return scheduled items
+    if (activeFilter === 'scheduled') {
+      return scheduledItems;
+    }
+
     let result = items;
     
     // Filter by favorites
@@ -750,7 +831,7 @@ const AuthenticatedContent: React.FC = () => {
     }
     
     return result;
-  }, [items, trashItems, activeFilter, activeTagFilter, searchQuery]);
+  }, [items, trashItems, scheduledItems, activeFilter, activeTagFilter, searchQuery]);
 
   // Calculate item counts for sidebar
   const itemCounts = useMemo(() => {
@@ -758,6 +839,7 @@ const AuthenticatedContent: React.FC = () => {
       all: items.length,
       favorites: items.filter(i => i.isFavorite).length,
       encrypted: items.filter(i => i.isEncrypted).length,
+      scheduled: items.filter(i => i.reminderAt != null).length,
       trash: trashItems.length,
       [ItemType.TEXT]: items.filter(i => i.type === ItemType.TEXT).length,
       [ItemType.LINK]: items.filter(i => i.type === ItemType.LINK).length,
@@ -1047,6 +1129,7 @@ const AuthenticatedContent: React.FC = () => {
         onUpdateTags={handleUpdateItemTags}
         onToggleEncryption={handleOpenEncryptionModal}
         onUpdateTitle={handleUpdateTitle}
+        onUpdateReminder={handleUpdateReminder}
       />
 
       {/* Settings Modal */}

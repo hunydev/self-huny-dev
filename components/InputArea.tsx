@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code, Bell } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestTitle } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
@@ -32,8 +32,11 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState('');
   const [isCode, setIsCode] = useState(false);
+  const [reminderAt, setReminderAt] = useState<number | null>(null);
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const reminderPickerRef = useRef<HTMLDivElement>(null);
   const prevActiveTagFilterRef = useRef<string | null | undefined>(undefined);
 
   // Auto-select active filter tag when it changes (replace previous filter tag)
@@ -124,6 +127,19 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
     }
   }, [text]);
+
+  // Close reminder picker on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (reminderPickerRef.current && !reminderPickerRef.current.contains(e.target as Node)) {
+        setShowReminderPicker(false);
+      }
+    };
+    if (showReminderPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showReminderPicker]);
 
   const detectType = (content: string, file: File | null): ItemType => {
     if (file) {
@@ -359,6 +375,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       isEncrypted,
       encryptionKey: isEncrypted ? encryptionKey : undefined,
       isCode: isCode || undefined,
+      reminderAt: reminderAt || undefined,
     };
 
     if (file) {
@@ -386,6 +403,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setIsEncrypted(false);
     setEncryptionKey('');
     setIsCode(false);
+    setReminderAt(null);
+    setShowReminderPicker(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -605,7 +624,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             )}
           </div>
 
-          {/* Options: Code & Encryption */}
+          {/* Options: Code, Encryption & Reminder */}
           <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
             {/* Code Toggle */}
             <button
@@ -645,6 +664,90 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 <span className="text-xs text-amber-600 whitespace-nowrap">제목 필수</span>
               </>
             )}
+            
+            {/* Reminder Picker */}
+            <div className="relative" ref={reminderPickerRef}>
+              <button
+                type="button"
+                onClick={() => setShowReminderPicker(!showReminderPicker)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  reminderAt
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <Bell size={16} />
+                {reminderAt ? (
+                  <span className="hidden sm:inline">
+                    {new Date(reminderAt).toLocaleDateString('ko-KR', { 
+                      month: 'short', 
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline">알림</span>
+                )}
+                {reminderAt && (
+                  <X 
+                    size={14} 
+                    className="ml-1 hover:text-red-500"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReminderAt(null);
+                    }}
+                  />
+                )}
+              </button>
+              
+              {showReminderPicker && (
+                <div className="absolute bottom-full mb-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-64">
+                  <div className="text-sm font-medium text-slate-700 mb-2">알림 설정</div>
+                  <div className="space-y-2">
+                    <input
+                      type="datetime-local"
+                      value={reminderAt ? new Date(reminderAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setReminderAt(new Date(e.target.value).getTime());
+                        } else {
+                          setReminderAt(null);
+                        }
+                      }}
+                      min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                      className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: '1시간 후', hours: 1 },
+                        { label: '내일', hours: 24 },
+                        { label: '1주일 후', hours: 168 },
+                      ].map(({ label, hours }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => {
+                            setReminderAt(Date.now() + hours * 60 * 60 * 1000);
+                            setShowReminderPicker(false);
+                          }}
+                          className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowReminderPicker(false)}
+                      className="w-full mt-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      확인
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Action Bar */}
