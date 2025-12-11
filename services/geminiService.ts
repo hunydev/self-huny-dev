@@ -2,6 +2,52 @@ import { ItemType } from "../types";
 
 const API_BASE = '/api';
 
+// AI Usage tracking types
+export interface AIUsageStats {
+  titleGeneration: number;
+  textFormatting: number;
+  itemParsing: number;
+  lastReset: string; // ISO date string
+}
+
+const AI_USAGE_KEY = 'ai_usage_stats';
+
+// Get current AI usage stats
+export const getAIUsageStats = (): AIUsageStats => {
+  const stored = localStorage.getItem(AI_USAGE_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      // Invalid data, reset
+    }
+  }
+  return {
+    titleGeneration: 0,
+    textFormatting: 0,
+    itemParsing: 0,
+    lastReset: new Date().toISOString(),
+  };
+};
+
+// Increment AI usage count
+const incrementUsage = (type: keyof Omit<AIUsageStats, 'lastReset'>) => {
+  const stats = getAIUsageStats();
+  stats[type]++;
+  localStorage.setItem(AI_USAGE_KEY, JSON.stringify(stats));
+};
+
+// Reset AI usage stats (for future use with quotas)
+export const resetAIUsageStats = () => {
+  const newStats: AIUsageStats = {
+    titleGeneration: 0,
+    textFormatting: 0,
+    itemParsing: 0,
+    lastReset: new Date().toISOString(),
+  };
+  localStorage.setItem(AI_USAGE_KEY, JSON.stringify(newStats));
+};
+
 // Get auth token from localStorage
 const getAuthToken = (): string | null => {
   return localStorage.getItem('auth_token');
@@ -40,6 +86,10 @@ export const suggestTitle = async (content: string): Promise<string> => {
   }
 
   const data = await response.json() as { title: string };
+  
+  // Track usage
+  incrementUsage('titleGeneration');
+  
   return data.title;
 };
 
@@ -57,6 +107,10 @@ export const formatText = async (content: string): Promise<string> => {
   }
 
   const data = await response.json() as { formatted: string };
+  
+  // Track usage
+  incrementUsage('textFormatting');
+  
   return data.formatted;
 };
 
@@ -74,6 +128,10 @@ export const parseItems = async (content: string): Promise<ParsedItem[]> => {
   }
 
   const data = await response.json() as { items: ParsedItem[] };
+  
+  // Track usage
+  incrementUsage('itemParsing');
+  
   return data.items;
 };
 
