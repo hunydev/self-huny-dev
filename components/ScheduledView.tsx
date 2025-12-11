@@ -59,7 +59,7 @@ const ItemThumbnail: React.FC<{ item: Item; onClick: (e: React.MouseEvent) => vo
     return (
       <button
         onClick={handleClick}
-        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:ring-2 hover:ring-indigo-400 transition-all shrink-0"
+        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:scale-125 hover:shadow-md hover:z-10 transition-all duration-150 shrink-0"
         title={item.title || item.fileName || '이미지'}
       >
         <img src={fileUrl} alt="" className="w-full h-full object-cover" />
@@ -72,7 +72,7 @@ const ItemThumbnail: React.FC<{ item: Item; onClick: (e: React.MouseEvent) => vo
     return (
       <button
         onClick={handleClick}
-        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:ring-2 hover:ring-indigo-400 transition-all shrink-0"
+        className="w-6 h-6 rounded overflow-hidden bg-slate-200 hover:scale-125 hover:shadow-md hover:z-10 transition-all duration-150 shrink-0"
         title={item.title || item.ogTitle || 'Link'}
       >
         <img src={item.ogImage} alt="" className="w-full h-full object-cover" />
@@ -93,7 +93,7 @@ const ItemThumbnail: React.FC<{ item: Item; onClick: (e: React.MouseEvent) => vo
   return (
     <button
       onClick={handleClick}
-      className={`w-6 h-6 rounded ${iconBg} flex items-center justify-center hover:ring-2 hover:ring-indigo-400 transition-all shrink-0`}
+      className={`w-6 h-6 rounded ${iconBg} flex items-center justify-center hover:scale-125 hover:shadow-md hover:z-10 transition-all duration-150 shrink-0`}
       title={item.title || item.content?.slice(0, 30) || item.fileName || '아이템'}
     >
       {getTypeIcon(item.type)}
