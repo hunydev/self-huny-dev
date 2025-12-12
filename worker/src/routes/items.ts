@@ -349,6 +349,8 @@ itemsRoutes.get('/', async (c) => {
         isEncrypted,
         isCode: row.is_code === 1,
         createdAt: row.created_at,
+        reminderAt: row.reminder_at,
+        expiresAt: row.expires_at,
       };
     });
 
@@ -402,6 +404,8 @@ itemsRoutes.get('/:id', async (c) => {
       isEncrypted,
       isCode: item.is_code === 1,
       createdAt: item.created_at,
+      reminderAt: item.reminder_at,
+      expiresAt: item.expires_at,
     });
   } catch (error) {
     console.error('Error fetching item:', error);
@@ -528,7 +532,7 @@ itemsRoutes.put('/:id', async (c) => {
     const userId = user.sub;
 
     const body = await c.req.json();
-    const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode } = body;
+    const { content, htmlContent, title, tags, isFavorite, isEncrypted, encryptionHash, isCode, reminderAt, expiresAt } = body;
 
     // 암호화 해제 시 기존 비밀번호 검증
     if (isEncrypted === false) {
@@ -591,6 +595,14 @@ itemsRoutes.put('/:id', async (c) => {
     if (isCode !== undefined) {
       updates.push('is_code = ?');
       params.push(isCode ? 1 : 0);
+    }
+    if (reminderAt !== undefined) {
+      updates.push('reminder_at = ?');
+      params.push(reminderAt);
+    }
+    if (expiresAt !== undefined) {
+      updates.push('expires_at = ?');
+      params.push(expiresAt);
     }
     
     if (updates.length > 0) {

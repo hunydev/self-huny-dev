@@ -946,7 +946,7 @@ const AuthenticatedContent: React.FC = () => {
       all: items.length,
       favorites: items.filter(i => i.isFavorite).length,
       encrypted: items.filter(i => i.isEncrypted).length,
-      scheduled: items.filter(i => i.reminderAt != null).length,
+      scheduled: scheduledItems.length,
       expiring: expiringItems.length,
       trash: trashItems.length,
       [ItemType.TEXT]: items.filter(i => i.type === ItemType.TEXT).length,
@@ -962,7 +962,7 @@ const AuthenticatedContent: React.FC = () => {
     });
     
     return counts;
-  }, [items, tags]);
+  }, [items, tags, scheduledItems, expiringItems, trashItems]);
 
   if (isLoading) {
     return (
