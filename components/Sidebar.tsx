@@ -62,6 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [showTagInput, setShowTagInput] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [editTagName, setEditTagName] = useState('');
+  const [editTagColor, setEditTagColor] = useState<string | undefined>(undefined);
   const [editTagKeywords, setEditTagKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
   const [showTagModal, setShowTagModal] = useState(false);
@@ -93,12 +94,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (tag) {
       setEditingTag(tag);
       setEditTagName(tag.name);
+      setEditTagColor(tag.color);
       setEditTagKeywords(tag.autoKeywords || []);
       setKeywordInput('');
       setIsCreatingTag(false);
     } else {
       setEditingTag(null);
       setEditTagName('');
+      setEditTagColor(undefined);
       setEditTagKeywords([]);
       setKeywordInput('');
       setIsCreatingTag(true);
@@ -110,6 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     setShowTagModal(false);
     setEditingTag(null);
     setEditTagName('');
+    setEditTagColor(undefined);
     setEditTagKeywords([]);
     setKeywordInput('');
     setIsCreatingTag(false);
@@ -122,6 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       onUpdateTag({
         ...editingTag,
         name: editTagName.trim(),
+        color: editTagColor,
         autoKeywords: editTagKeywords,
       });
     }
@@ -660,6 +665,56 @@ const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="Enter label name..."
                 />
+              </div>
+
+              {/* Color Selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {/* No color option */}
+                  <button
+                    type="button"
+                    onClick={() => setEditTagColor(undefined)}
+                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                      !editTagColor ? 'border-slate-400 ring-2 ring-slate-200' : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                    title="기본"
+                  >
+                    <X size={12} className="text-slate-400" />
+                  </button>
+                  {/* Color options */}
+                  {[
+                    { value: 'red', bg: 'bg-red-500', ring: 'ring-red-200' },
+                    { value: 'orange', bg: 'bg-orange-500', ring: 'ring-orange-200' },
+                    { value: 'amber', bg: 'bg-amber-500', ring: 'ring-amber-200' },
+                    { value: 'yellow', bg: 'bg-yellow-500', ring: 'ring-yellow-200' },
+                    { value: 'lime', bg: 'bg-lime-500', ring: 'ring-lime-200' },
+                    { value: 'green', bg: 'bg-green-500', ring: 'ring-green-200' },
+                    { value: 'emerald', bg: 'bg-emerald-500', ring: 'ring-emerald-200' },
+                    { value: 'teal', bg: 'bg-teal-500', ring: 'ring-teal-200' },
+                    { value: 'cyan', bg: 'bg-cyan-500', ring: 'ring-cyan-200' },
+                    { value: 'sky', bg: 'bg-sky-500', ring: 'ring-sky-200' },
+                    { value: 'blue', bg: 'bg-blue-500', ring: 'ring-blue-200' },
+                    { value: 'indigo', bg: 'bg-indigo-500', ring: 'ring-indigo-200' },
+                    { value: 'violet', bg: 'bg-violet-500', ring: 'ring-violet-200' },
+                    { value: 'purple', bg: 'bg-purple-500', ring: 'ring-purple-200' },
+                    { value: 'fuchsia', bg: 'bg-fuchsia-500', ring: 'ring-fuchsia-200' },
+                    { value: 'pink', bg: 'bg-pink-500', ring: 'ring-pink-200' },
+                    { value: 'rose', bg: 'bg-rose-500', ring: 'ring-rose-200' },
+                  ].map(color => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      onClick={() => setEditTagColor(color.value)}
+                      className={`w-7 h-7 rounded-full ${color.bg} border-2 border-white transition-all ${
+                        editTagColor === color.value ? `ring-2 ${color.ring} scale-110` : 'hover:scale-105'
+                      }`}
+                      title={color.value}
+                    />
+                  ))}
+                </div>
               </div>
               
               <div>

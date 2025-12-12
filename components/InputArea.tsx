@@ -5,6 +5,37 @@ import { suggestTitle, formatText } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
 import { sanitizeHtml, hasRichFormatting } from '../utils/htmlSanitizer';
 
+// Tag color utility functions
+const TAG_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  red: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', dot: 'bg-red-500' },
+  orange: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300', dot: 'bg-orange-500' },
+  amber: { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300', dot: 'bg-amber-500' },
+  yellow: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', dot: 'bg-yellow-500' },
+  lime: { bg: 'bg-lime-100', text: 'text-lime-700', border: 'border-lime-300', dot: 'bg-lime-500' },
+  green: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', dot: 'bg-green-500' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', dot: 'bg-emerald-500' },
+  teal: { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-300', dot: 'bg-teal-500' },
+  cyan: { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-300', dot: 'bg-cyan-500' },
+  sky: { bg: 'bg-sky-100', text: 'text-sky-700', border: 'border-sky-300', dot: 'bg-sky-500' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300', dot: 'bg-blue-500' },
+  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300', dot: 'bg-indigo-500' },
+  violet: { bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-300', dot: 'bg-violet-500' },
+  purple: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300', dot: 'bg-purple-500' },
+  fuchsia: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-700', border: 'border-fuchsia-300', dot: 'bg-fuchsia-500' },
+  pink: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300', dot: 'bg-pink-500' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-300', dot: 'bg-rose-500' },
+};
+
+const getTagColorClass = (color: string, isSelected: boolean): string | null => {
+  const colors = TAG_COLORS[color];
+  if (!colors) return null;
+  return isSelected ? `${colors.bg} ${colors.text} ${colors.border}` : null;
+};
+
+const getTagDotClass = (color: string): string => {
+  return TAG_COLORS[color]?.dot || 'bg-slate-400';
+};
+
 interface InputAreaProps {
   onSave: (item: Omit<Item, 'id' | 'createdAt'>) => void;
   availableTags: Tag[];
@@ -620,20 +651,24 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             {availableTags.map(tag => {
               const isSelected = selectedTags.includes(tag.id);
               const isAutoMatched = autoMatchedTags.includes(tag.id);
+              const tagColorClass = tag.color ? getTagColorClass(tag.color, isSelected) : null;
               return (
                 <button
                   key={tag.id}
                   onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
                   className={`text-xs px-2.5 py-1 rounded-full transition-colors border flex items-center gap-1 ${
                     isSelected 
-                      ? isAutoMatched
-                        ? 'bg-amber-100 text-amber-700 border-amber-300'
-                        : 'bg-indigo-100 text-indigo-700 border-indigo-200' 
+                      ? tagColorClass 
+                        ? tagColorClass
+                        : isAutoMatched
+                          ? 'bg-amber-100 text-amber-700 border-amber-300'
+                          : 'bg-indigo-100 text-indigo-700 border-indigo-200' 
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                   title={isAutoMatched ? 'Auto-matched by keyword' : undefined}
                 >
-                  {isAutoMatched && isSelected && <span className="text-amber-500">⚡</span>}
+                  {tag.color && <span className={`w-2 h-2 rounded-full ${getTagDotClass(tag.color)}`}></span>}
+                  {isAutoMatched && isSelected && !tag.color && <span className="text-amber-500">⚡</span>}
                   # {tag.name}
                 </button>
               );

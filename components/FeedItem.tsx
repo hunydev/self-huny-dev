@@ -10,6 +10,35 @@ import { checkPreviewSupport } from '../services/filePreviewService';
 import { createHighlightedCodeHtml } from '../utils/codeHighlight';
 import { sanitizeHtml } from '../utils/htmlSanitizer';
 
+// Tag color utility functions
+const TAG_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  red: { bg: 'bg-red-100 text-red-700', text: 'text-red-700', dot: 'bg-red-500' },
+  orange: { bg: 'bg-orange-100 text-orange-700', text: 'text-orange-700', dot: 'bg-orange-500' },
+  amber: { bg: 'bg-amber-100 text-amber-700', text: 'text-amber-700', dot: 'bg-amber-500' },
+  yellow: { bg: 'bg-yellow-100 text-yellow-700', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+  lime: { bg: 'bg-lime-100 text-lime-700', text: 'text-lime-700', dot: 'bg-lime-500' },
+  green: { bg: 'bg-green-100 text-green-700', text: 'text-green-700', dot: 'bg-green-500' },
+  emerald: { bg: 'bg-emerald-100 text-emerald-700', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  teal: { bg: 'bg-teal-100 text-teal-700', text: 'text-teal-700', dot: 'bg-teal-500' },
+  cyan: { bg: 'bg-cyan-100 text-cyan-700', text: 'text-cyan-700', dot: 'bg-cyan-500' },
+  sky: { bg: 'bg-sky-100 text-sky-700', text: 'text-sky-700', dot: 'bg-sky-500' },
+  blue: { bg: 'bg-blue-100 text-blue-700', text: 'text-blue-700', dot: 'bg-blue-500' },
+  indigo: { bg: 'bg-indigo-100 text-indigo-700', text: 'text-indigo-700', dot: 'bg-indigo-500' },
+  violet: { bg: 'bg-violet-100 text-violet-700', text: 'text-violet-700', dot: 'bg-violet-500' },
+  purple: { bg: 'bg-purple-100 text-purple-700', text: 'text-purple-700', dot: 'bg-purple-500' },
+  fuchsia: { bg: 'bg-fuchsia-100 text-fuchsia-700', text: 'text-fuchsia-700', dot: 'bg-fuchsia-500' },
+  pink: { bg: 'bg-pink-100 text-pink-700', text: 'text-pink-700', dot: 'bg-pink-500' },
+  rose: { bg: 'bg-rose-100 text-rose-700', text: 'text-rose-700', dot: 'bg-rose-500' },
+};
+
+const getTagBgClass = (color: string): string => {
+  return TAG_COLORS[color]?.bg || 'bg-slate-100 text-slate-500';
+};
+
+const getTagDotClass = (color: string): string => {
+  return TAG_COLORS[color]?.dot || 'bg-slate-400';
+};
+
 // YouTube URL 감지
 const isYouTubeUrl = (url: string): boolean => {
   return /(?:youtube\.com|youtu\.be)/.test(url);
@@ -717,7 +746,13 @@ const FeedItem: React.FC<FeedItemProps> = ({
             {itemTags.length > 0 && (
               <div className="flex gap-1">
                 {itemTags.slice(0, 2).map(tag => (
-                  <span key={tag.id} className="text-[9px] px-1 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">
+                  <span 
+                    key={tag.id} 
+                    className={`text-[9px] px-1 py-0.5 rounded font-medium flex items-center gap-0.5 ${
+                      tag.color ? getTagBgClass(tag.color) : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {tag.color && <span className={`w-1.5 h-1.5 rounded-full ${getTagDotClass(tag.color)}`}></span>}
                     #{tag.name}
                   </span>
                 ))}
@@ -783,7 +818,13 @@ const FeedItem: React.FC<FeedItemProps> = ({
             {itemTags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1">
                 {itemTags.map(tag => (
-                  <span key={tag.id} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full font-medium">
+                  <span 
+                    key={tag.id} 
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5 ${
+                      tag.color ? getTagBgClass(tag.color) : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {tag.color && <span className={`w-1.5 h-1.5 rounded-full ${getTagDotClass(tag.color)}`}></span>}
                     #{tag.name}
                   </span>
                 ))}
