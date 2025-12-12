@@ -282,11 +282,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
       return (
         <div className="relative p-6 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 gap-3">
           <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-            {deletionInfo && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
-                {deletionInfo.text}
-              </span>
-            )}
             {!isExpiringView && item.expiresAt && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                 {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -318,13 +313,8 @@ const FeedItem: React.FC<FeedItemProps> = ({
                 <ImageIcon size={32} />
               </div>
             )}
-            {/* 알림/만료/삭제 배지 */}
+            {/* 알림/만료 배지 */}
             <div className="absolute top-2 right-2 flex items-center gap-1">
-              {deletionInfo && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full drop-shadow-sm ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-white/90 text-slate-500'}`}>
-                  {deletionInfo.text}
-                </span>
-              )}
               {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 drop-shadow-sm">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -346,13 +336,8 @@ const FeedItem: React.FC<FeedItemProps> = ({
             ) : (
               <Video size={32} className="text-white/50" />
             )}
-            {/* 알림/만료/삭제 배지 */}
+            {/* 알림/만료 배지 */}
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-              {deletionInfo && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full drop-shadow-sm ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-white/90 text-slate-500'}`}>
-                  {deletionInfo.text}
-                </span>
-              )}
               {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 drop-shadow-sm">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -375,11 +360,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
           return (
             <div className="p-4 flex flex-col items-center justify-center aspect-square bg-gradient-to-br from-purple-50 to-indigo-50 text-slate-500 gap-3 relative">
               <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-                {deletionInfo && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
-                    {deletionInfo.text}
-                  </span>
-                )}
                 {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -428,11 +408,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
           <div className={`p-4 flex flex-col items-center justify-center aspect-square ${fileStyle.bg} text-slate-500 gap-2 relative`}>
             {/* 우측 상단 배지들 */}
             <div className="absolute top-2 right-2 flex items-center gap-1.5">
-              {deletionInfo && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-white/80 text-slate-500'}`}>
-                  {deletionInfo.text}
-                </span>
-              )}
               {item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -460,13 +435,8 @@ const FeedItem: React.FC<FeedItemProps> = ({
         if (item.ogImage) {
           return (
             <div className="flex flex-col h-full relative">
-              {/* 알림/만료/삭제 배지 */}
+              {/* 알림/만료 배지 */}
               <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-                {deletionInfo && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-white/90 text-slate-500'}`}>
-                    {deletionInfo.text}
-                  </span>
-                )}
                 {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -478,7 +448,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   </div>
                 )}
               </div>
-              {/* OG Image with YouTube play overlay */}
+              {/* OG Image with YouTube play overlay */>
               <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
                 <img 
                   src={item.ogImage} 
@@ -530,13 +500,8 @@ const FeedItem: React.FC<FeedItemProps> = ({
         // Fallback: Show simple link card (no OG image)
         return (
           <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 flex flex-col h-full min-h-[120px] relative">
-            {/* 알림/만료/삭제 배지 */}
+            {/* 알림/만료 배지 */}
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-              {deletionInfo && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
-                  {deletionInfo.text}
-                </span>
-              )}
               {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -594,11 +559,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
                     }}
                   />
                   <div className="absolute top-2 right-2 flex items-center gap-1">
-                    {deletionInfo && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full drop-shadow-sm ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-white/90 text-slate-500'}`}>
-                        {deletionInfo.text}
-                      </span>
-                    )}
                     {!isExpiringView && item.expiresAt && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 drop-shadow-sm">
                         {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -637,11 +597,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
           return (
             <div className="relative p-3 bg-slate-900 flex flex-col h-full min-h-[100px] overflow-hidden">
               <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-                {deletionInfo && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-slate-700 text-slate-300'}`}>
-                    {deletionInfo.text}
-                  </span>
-                )}
                 {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -669,11 +624,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
           return (
             <div className="relative p-4 bg-white flex flex-col h-full min-h-[100px] max-h-[200px] overflow-hidden">
               <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-                {deletionInfo && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
-                    {deletionInfo.text}
-                  </span>
-                )}
                 {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -717,11 +667,6 @@ const FeedItem: React.FC<FeedItemProps> = ({
         return (
           <div className="relative p-4 bg-white flex flex-col h-full min-h-[100px]">
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-              {deletionInfo && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
-                  {deletionInfo.text}
-                </span>
-              )}
               {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
@@ -883,6 +828,15 @@ const FeedItem: React.FC<FeedItemProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Trash Deletion Badge - Common overlay for all item types */}
+      {deletionInfo && (
+        <div className="absolute top-2 right-2 z-20">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full drop-shadow-sm ${deletionInfo.isUrgent ? 'bg-red-100 text-red-600' : 'bg-white/90 text-slate-500'}`}>
+            {deletionInfo.text}
+          </span>
         </div>
       )}
 
