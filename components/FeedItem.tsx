@@ -448,7 +448,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   </div>
                 )}
               </div>
-              {/* OG Image with YouTube play overlay */>
+              {/* OG Image with YouTube play overlay */}
               <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
                 <img 
                   src={item.ogImage} 
