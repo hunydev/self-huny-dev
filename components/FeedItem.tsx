@@ -131,6 +131,7 @@ interface FeedItemProps {
   onToggleEncryption?: (id: string) => void;
   compact?: boolean;
   isTrashView?: boolean;
+  isExpiringView?: boolean;
   onRestore?: (id: string) => void;
   onPermanentDelete?: (id: string) => void;
 }
@@ -144,6 +145,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
   onToggleEncryption, 
   compact = false,
   isTrashView = false,
+  isExpiringView = false,
   onRestore,
   onPermanentDelete,
 }) => {
@@ -285,7 +287,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                 {deletionInfo.text}
               </span>
             )}
-            {item.expiresAt && (
+            {!isExpiringView && item.expiresAt && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                 {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
               </span>
@@ -323,7 +325,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   {deletionInfo.text}
                 </span>
               )}
-              {item.expiresAt && (
+              {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 drop-shadow-sm">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                 </span>
@@ -351,7 +353,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   {deletionInfo.text}
                 </span>
               )}
-              {item.expiresAt && (
+              {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 drop-shadow-sm">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                 </span>
@@ -378,7 +380,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                     {deletionInfo.text}
                   </span>
                 )}
-                {item.expiresAt && (
+                {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                   </span>
@@ -465,7 +467,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                     {deletionInfo.text}
                   </span>
                 )}
-                {item.expiresAt && (
+                {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                   </span>
@@ -535,7 +537,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   {deletionInfo.text}
                 </span>
               )}
-              {item.expiresAt && (
+              {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                 </span>
@@ -597,7 +599,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                         {deletionInfo.text}
                       </span>
                     )}
-                    {item.expiresAt && (
+                    {!isExpiringView && item.expiresAt && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 drop-shadow-sm">
                         {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                       </span>
@@ -640,7 +642,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                     {deletionInfo.text}
                   </span>
                 )}
-                {item.expiresAt && (
+                {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                   </span>
@@ -672,7 +674,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                     {deletionInfo.text}
                   </span>
                 )}
-                {item.expiresAt && (
+                {!isExpiringView && item.expiresAt && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                     {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                   </span>
@@ -720,7 +722,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   {deletionInfo.text}
                 </span>
               )}
-              {item.expiresAt && (
+              {!isExpiringView && item.expiresAt && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">
                   {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
                 </span>

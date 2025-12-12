@@ -188,6 +188,7 @@ const Feed: React.FC<FeedProps> = ({
                   onToggleEncryption={onToggleEncryption}
                   compact={true}
                   isTrashView={false}
+                  isExpiringView={true}
                   onRestore={onRestore}
                   onPermanentDelete={onPermanentDelete}
                 />
@@ -212,6 +213,7 @@ const Feed: React.FC<FeedProps> = ({
                   onToggleEncryption={onToggleEncryption}
                   compact={false}
                   isTrashView={false}
+                  isExpiringView={true}
                   onRestore={onRestore}
                   onPermanentDelete={onPermanentDelete}
                 />
