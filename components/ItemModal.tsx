@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2, ZoomIn, ZoomOut, MoveHorizontal, RotateCcw, Bell, Timer } from 'lucide-react';
+import { X, Copy, Download, ExternalLink, Check, FileText, Image as ImageIcon, Video, Eye, LockKeyhole, Unlock, Play, Music, Code, Wand2, Loader2, Pencil, Info, ChevronDown, ChevronUp, Maximize2, Minimize2, ZoomIn, ZoomOut, MoveHorizontal, RotateCcw, Bell, Timer, Expand, Shrink } from 'lucide-react';
 import { getFileUrl, unlockItem, updateItemTitle, updateItemReminder, updateItemExpiry } from '../services/db';
 import { suggestTitle } from '../services/geminiService';
 import { linkifyText } from '../utils/linkify';
@@ -76,6 +76,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
   const [copied, setCopied] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
+  const [isWideMode, setIsWideMode] = useState(false);
   
   // 리마인더 상태
   const [showReminderPicker, setShowReminderPicker] = useState(false);
@@ -814,7 +815,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       
       {/* Modal */}
       <div 
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        className={`relative bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col transition-all duration-200 ${isWideMode ? 'max-w-5xl' : 'max-w-2xl'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -1015,6 +1016,18 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                 {item.isEncrypted ? <Unlock size={20} /> : <LockKeyhole size={20} />}
               </button>
             )}
+            {/* 와이드 모드 토글 버튼 */}
+            <button
+              onClick={() => setIsWideMode(!isWideMode)}
+              className={`p-2 rounded-lg transition-colors ${
+                isWideMode
+                  ? 'text-indigo-500 hover:bg-indigo-50'
+                  : 'text-slate-400 hover:text-indigo-500 hover:bg-indigo-50'
+              }`}
+              title={isWideMode ? '기본 크기' : '크게 보기'}
+            >
+              {isWideMode ? <Shrink size={20} /> : <Expand size={20} />}
+            </button>
             <button 
               onClick={handleClose}
               className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
