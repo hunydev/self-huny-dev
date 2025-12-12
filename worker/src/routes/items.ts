@@ -42,7 +42,7 @@ itemsRoutes.delete('/delete-all', async (c) => {
 
     // Get all file keys to delete from R2 for this user
     const { results: items } = await c.env.DB.prepare('SELECT file_key FROM items WHERE file_key IS NOT NULL AND user_id = ?').bind(userId).all();
-    
+
     // Delete all files from R2
     for (const item of items || []) {
       if (item.file_key) {
@@ -83,7 +83,7 @@ itemsRoutes.get('/trash', async (c) => {
       GROUP BY i.id
       ORDER BY i.deleted_at DESC
     `).bind(userId).all();
-    
+
     // Transform results
     const items = results.map((row: any) => {
       const isEncrypted = row.is_encrypted === 1;
@@ -137,7 +137,7 @@ itemsRoutes.delete('/trash/empty', async (c) => {
 
     // Delete all trash items
     await c.env.DB.prepare('DELETE FROM items WHERE user_id = ? AND deleted_at IS NOT NULL').bind(userId).run();
-    
+
     return c.json({ success: true, deleted: results.length });
   } catch (error) {
     console.error('Error emptying trash:', error);
@@ -161,7 +161,7 @@ itemsRoutes.get('/scheduled', async (c) => {
       GROUP BY i.id
       ORDER BY i.reminder_at ASC
     `).bind(userId).all();
-    
+
     const items = results.map((row: any) => {
       const isEncrypted = row.is_encrypted === 1;
       return {
@@ -210,7 +210,7 @@ itemsRoutes.get('/expiring', async (c) => {
       GROUP BY i.id
       ORDER BY i.expires_at ASC
     `).bind(userId).all();
-    
+
     const items = results.map((row: any) => {
       const isEncrypted = row.is_encrypted === 1;
       return {
@@ -268,9 +268,9 @@ itemsRoutes.post('/expire-check', async (c) => {
     `).bind(now, userId, now).run();
 
     console.log('[Expire Check] Expired items moved to trash:', result.meta.changes, 'for user:', userId);
-    
-    return c.json({ 
-      success: true, 
+
+    return c.json({
+      success: true,
       expired: result.meta.changes || 0
     });
   } catch (error) {
@@ -299,7 +299,7 @@ itemsRoutes.get('/', async (c) => {
       LEFT JOIN item_tags it ON i.id = it.item_id
     `;
     const params: any[] = [];
-    const conditions: string[] = ['i.user_id = ?'];
+    const conditions: string[] = ['i.user_id = ?', 'i.deleted_at IS NULL'];
     params.push(userId);
 
     if (type && type !== 'all') {
@@ -311,7 +311,7 @@ itemsRoutes.get('/', async (c) => {
       conditions.push('EXISTS (SELECT 1 FROM item_tags WHERE item_id = i.id AND tag_id = ?)');
       params.push(tagId);
     }
-    
+
     // Filter by encrypted status
     if (encrypted === 'true') {
       conditions.push('i.is_encrypted = 1');
@@ -325,7 +325,7 @@ itemsRoutes.get('/', async (c) => {
     params.push(limit, offset);
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all();
-    
+
     // Transform results
     const items = results.map((row: any) => {
       const isEncrypted = row.is_encrypted === 1;
@@ -437,7 +437,7 @@ itemsRoutes.post('/', async (c) => {
 
     if (content) {
       let urlToParse: string | null = null;
-      
+
       if (type === 'link') {
         // For link type, use the content directly
         urlToParse = content;
@@ -450,7 +450,7 @@ itemsRoutes.post('/', async (c) => {
           console.log('[Items] Found URL in text content:', urlToParse);
         }
       }
-      
+
       if (urlToParse) {
         try {
           const ogData = await parseOgMetadata(urlToParse);
@@ -469,15 +469,15 @@ itemsRoutes.post('/', async (c) => {
       INSERT INTO items (id, type, content, html_content, file_key, file_name, file_size, mime_type, title, og_image, og_title, og_description, is_encrypted, encryption_hash, is_code, user_id, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      id, 
-      type, 
-      content || '', 
+      id,
+      type,
+      content || '',
       htmlContent || null,
-      fileKey || null, 
-      fileName || null, 
-      fileSize || null, 
-      mimeType || null, 
-      title || null, 
+      fileKey || null,
+      fileName || null,
+      fileSize || null,
+      mimeType || null,
+      title || null,
       ogImage,
       ogTitle,
       ogDescription,
@@ -490,7 +490,7 @@ itemsRoutes.post('/', async (c) => {
 
     // Insert tags if provided
     if (tags && tags.length > 0) {
-      const tagInserts = tags.map((tagId: string) => 
+      const tagInserts = tags.map((tagId: string) =>
         c.env.DB.prepare('INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?)')
           .bind(id, tagId)
           .run()
@@ -498,24 +498,24 @@ itemsRoutes.post('/', async (c) => {
       await Promise.all(tagInserts);
     }
 
-    return c.json({ 
-      id, 
-      type, 
-      content: isEncrypted ? '' : (content || ''), 
+    return c.json({
+      id,
+      type,
+      content: isEncrypted ? '' : (content || ''),
       htmlContent: isEncrypted ? undefined : (htmlContent || null),
-      fileKey: isEncrypted ? undefined : fileKey, 
-      fileName, 
-      fileSize, 
-      mimeType, 
-      title, 
+      fileKey: isEncrypted ? undefined : fileKey,
+      fileName,
+      fileSize,
+      mimeType,
+      title,
       ogImage: isEncrypted ? undefined : ogImage,
       ogTitle,
       ogDescription: isEncrypted ? undefined : ogDescription,
-      tags: tags || [], 
+      tags: tags || [],
       isFavorite: false,
       isEncrypted: !!isEncrypted,
       isCode: !!isCode,
-      createdAt: now 
+      createdAt: now
     }, 201);
   } catch (error) {
     console.error('Error creating item:', error);
@@ -566,7 +566,7 @@ itemsRoutes.put('/:id', async (c) => {
     // Only update content/title/isFavorite/encryption if they are provided
     const updates: string[] = [];
     const params: any[] = [];
-    
+
     if (content !== undefined) {
       updates.push('content = ?');
       params.push(content || '');
@@ -604,7 +604,7 @@ itemsRoutes.put('/:id', async (c) => {
       updates.push('expires_at = ?');
       params.push(expiresAt);
     }
-    
+
     if (updates.length > 0) {
       params.push(id, userId);
       await c.env.DB.prepare(`UPDATE items SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`)
@@ -616,10 +616,10 @@ itemsRoutes.put('/:id', async (c) => {
     if (tags !== undefined) {
       // Remove existing tags
       await c.env.DB.prepare('DELETE FROM item_tags WHERE item_id = ?').bind(id).run();
-      
+
       // Add new tags
       if (tags.length > 0) {
-        const tagInserts = tags.map((tagId: string) => 
+        const tagInserts = tags.map((tagId: string) =>
           c.env.DB.prepare('INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?)')
             .bind(id, tagId)
             .run()
@@ -645,7 +645,7 @@ itemsRoutes.delete('/:id', async (c) => {
 
     // Check if item exists and belongs to user
     const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NULL').bind(id, userId).first();
-    
+
     if (!item) {
       return c.json({ error: 'Item not found' }, 404);
     }
@@ -671,14 +671,14 @@ itemsRoutes.post('/:id/restore', async (c) => {
 
     // Check if item exists in trash
     const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL').bind(id, userId).first();
-    
+
     if (!item) {
       return c.json({ error: 'Item not found in trash' }, 404);
     }
 
     // Restore item
     await c.env.DB.prepare('UPDATE items SET deleted_at = NULL WHERE id = ? AND user_id = ?').bind(id, userId).run();
-    
+
     return c.json({ success: true });
   } catch (error) {
     console.error('Error restoring item:', error);
@@ -696,7 +696,7 @@ itemsRoutes.delete('/:id/permanent', async (c) => {
 
     // Get item to check for file (and verify ownership)
     const item = await c.env.DB.prepare('SELECT file_key FROM items WHERE id = ? AND user_id = ?').bind(id, userId).first();
-    
+
     if (!item) {
       return c.json({ error: 'Item not found' }, 404);
     }
@@ -708,7 +708,7 @@ itemsRoutes.delete('/:id/permanent', async (c) => {
 
     // Permanently delete item (item_tags will cascade)
     await c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(id, userId).run();
-    
+
     return c.json({ success: true });
   } catch (error) {
     console.error('Error permanently deleting item:', error);
