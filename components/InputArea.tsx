@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code, Bell, Timer, Sparkles } from 'lucide-react';
+import { Paperclip, Image as ImageIcon, X, Send, Wand2, Loader2, FileText, Plus, Trash2, LockKeyhole, Code, Bell, Timer, Sparkles, Pencil } from 'lucide-react';
 import { Item, ItemType, Tag } from '../types';
 import { suggestTitle, formatText } from '../services/geminiService';
 import { useSettings } from '../contexts/SettingsContext';
 import { sanitizeHtml, hasRichFormatting } from '../utils/htmlSanitizer';
+import SketchCanvas, { SketchCanvasHandle } from './SketchCanvas';
 
 // Tag color utility functions
 const TAG_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -52,7 +53,7 @@ export interface InputAreaHandle {
 
 const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus, onAddTag, onDeleteTag, activeTagFilter }, ref) => {
   const DRAFT_STORAGE_KEY = 'self-input-draft';
-  
+
   // Load draft from localStorage on mount
   const loadDraft = () => {
     try {
@@ -65,9 +66,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     }
     return null;
   };
-  
+
   const draft = loadDraft();
-  
+
   const [text, setText] = useState(draft?.text || '');
   const [htmlContent, setHtmlContent] = useState<string | undefined>(draft?.htmlContent || undefined);
   const [title, setTitle] = useState(draft?.title || '');
@@ -88,33 +89,36 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [isFormatting, setIsFormatting] = useState(false);
   const [hasContent, setHasContent] = useState(false); // Track if user has entered content
   const [savedHtmlContent, setSavedHtmlContent] = useState<string | undefined>(draft?.savedHtmlContent || undefined); // Save htmlContent when switching to code mode
+  const [isSketchMode, setIsSketchMode] = useState(false); // Sketch mode toggle
+  const [sketchData, setSketchData] = useState<string | undefined>(undefined); // Sketch image data
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const reminderPickerRef = useRef<HTMLDivElement>(null);
   const expiryPickerRef = useRef<HTMLDivElement>(null);
+  const sketchCanvasRef = useRef<SketchCanvasHandle>(null);
   const prevActiveTagFilterRef = useRef<string | null | undefined>(undefined);
 
   // Auto-select active filter tag when it changes (replace previous filter tag)
   useEffect(() => {
     const prevFilter = prevActiveTagFilterRef.current;
-    
+
     // Remove previous filter tag if it exists and was auto-added
     // Add new filter tag if it exists
     setSelectedTags(prev => {
       let newTags = prev;
-      
+
       // Remove previous filter tag (if different from new one)
       if (prevFilter && prevFilter !== activeTagFilter) {
         newTags = newTags.filter(t => t !== prevFilter);
       }
-      
+
       // Add new filter tag if not already selected
       if (activeTagFilter && !newTags.includes(activeTagFilter)) {
         newTags = [...newTags, activeTagFilter];
       }
-      
+
       return newTags;
     });
-    
+
     // Update ref
     prevActiveTagFilterRef.current = activeTagFilter;
   }, [activeTagFilter]);
@@ -124,7 +128,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   useEffect(() => {
     const textToCheck = `${text} ${title}`.toLowerCase();
     const newAutoMatched: string[] = [];
-    
+
     for (const tag of availableTags) {
       if (tag.autoKeywords && tag.autoKeywords.length > 0) {
         for (const keyword of tag.autoKeywords) {
@@ -135,7 +139,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
         }
       }
     }
-    
+
     // Add newly matched tags to selection (if not already selected)
     // Remove previously auto-matched tags that no longer match (if they weren't manually selected)
     setSelectedTags(prev => {
@@ -143,14 +147,14 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       const combined = [...new Set([...manuallySelected, ...newAutoMatched])];
       return combined;
     });
-    
+
     setAutoMatchedTags(newAutoMatched);
   }, [text, title, availableTags]);
 
   // Update hasContent when text, file, title, htmlContent changes
   useEffect(() => {
-    setHasContent(!!(text || file || title || htmlContent || selectedTags.length > 0 || isEncrypted || isCode || reminderAt || expiresAt));
-  }, [text, file, title, htmlContent, selectedTags, isEncrypted, isCode, reminderAt, expiresAt]);
+    setHasContent(!!(text || file || title || htmlContent || selectedTags.length > 0 || isEncrypted || isCode || isSketchMode || reminderAt || expiresAt));
+  }, [text, file, title, htmlContent, selectedTags, isEncrypted, isCode, isSketchMode, reminderAt, expiresAt]);
 
   // Save draft to localStorage when content changes
   useEffect(() => {
@@ -259,7 +263,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       // RTF 색상 테이블 추출
       const colorTableMatch = rtf.match(/\\colortbl;(.*?)}/);
       if (!colorTableMatch) return null;
-      
+
       const colors: string[] = ['#000000']; // index 0은 자동 색상
       const colorDefs = colorTableMatch[1].split(';');
       for (const def of colorDefs) {
@@ -270,15 +274,15 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
           colors.push(`rgb(${r},${g},${b})`);
         }
       }
-      
+
       // RTF 본문 추출 (색상 테이블 이후)
       let body = rtf.substring(colorTableMatch.index! + colorTableMatch[0].length);
-      
+
       // RTF 제어 코드 처리
       let html = '';
       let currentColor = '';
       let i = 0;
-      
+
       while (i < body.length) {
         if (body[i] === '\\') {
           // 색상 변경 감지
@@ -293,28 +297,28 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             i += cfMatch[0].length;
             continue;
           }
-          
+
           // 줄바꿈
           if (body.substring(i, i + 4) === '\\par') {
             html += '<br>';
             i += 4;
             continue;
           }
-          
+
           // 기타 제어 코드 스킵
           const ctrlMatch = body.substring(i).match(/^\\[a-z]+\d*\s?/);
           if (ctrlMatch) {
             i += ctrlMatch[0].length;
             continue;
           }
-          
+
           // 이스케이프 문자
           if (body[i + 1] === '\\' || body[i + 1] === '{' || body[i + 1] === '}') {
             html += body[i + 1];
             i += 2;
             continue;
           }
-          
+
           i++;
         } else if (body[i] === '{' || body[i] === '}') {
           i++;
@@ -325,9 +329,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
           i++;
         }
       }
-      
+
       if (currentColor) html += '</span>';
-      
+
       // 의미있는 HTML이 생성되었는지 확인
       if (html.includes('<span')) {
         return `<pre style="font-family: monospace; white-space: pre-wrap;"><code>${html}</code></pre>`;
@@ -347,18 +351,18 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       e.preventDefault();
       return;
     }
-    
+
     // 클립보드 데이터 가져오기
     const html = e.clipboardData?.getData('text/html');
     const rtf = e.clipboardData?.getData('text/rtf');
     const plainText = e.clipboardData?.getData('text/plain');
-    
+
     // 1. RTF 처리 (VS Code 등 코드 에디터에서 복사한 경우)
     if (rtf && plainText && !html) {
       const rtfHtml = rtfToHtml(rtf);
       if (rtfHtml) {
         e.preventDefault();
-        
+
         const textarea = textareaRef.current;
         if (textarea) {
           const start = textarea.selectionStart;
@@ -367,7 +371,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
           setText(newText);
           setHtmlContent(rtfHtml);
           setIsExpanded(true);
-          
+
           setTimeout(() => {
             textarea.selectionStart = textarea.selectionEnd = start + plainText.length;
             textarea.focus();
@@ -380,23 +384,23 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
         return;
       }
     }
-    
+
     // 2. HTML 처리 (표, 서식 텍스트 등)
     if (html) {
       // HTML이 서식을 포함하는지 확인
       if (hasRichFormatting(html)) {
         e.preventDefault();
-        
+
         // HTML sanitize
         const sanitized = sanitizeHtml(html);
-        
+
         // plainText가 없으면 HTML에서 텍스트 추출
         const textContent = plainText || (() => {
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
           return doc.body.textContent || '';
         })();
-        
+
         const textarea = textareaRef.current;
         if (textarea) {
           const start = textarea.selectionStart;
@@ -405,7 +409,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
           setText(newText);
           setHtmlContent(sanitized);
           setIsExpanded(true);
-          
+
           setTimeout(() => {
             textarea.selectionStart = textarea.selectionEnd = start + textContent.length;
             textarea.focus();
@@ -490,12 +494,12 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     // Check if focus is moving to a child element
     const relatedTarget = e.relatedTarget as HTMLElement | null;
     const currentTarget = e.currentTarget as HTMLElement;
-    
+
     // Don't collapse if clicking within the InputArea component
     if (relatedTarget && currentTarget.contains(relatedTarget)) {
       return;
     }
-    
+
     // Collapse only if there's no content
     if (!hasContent) {
       setIsExpanded(false);
@@ -503,10 +507,21 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   }, [hasContent]);
 
   const handleSubmit = () => {
-    if (!text && !file) return;
+    // Get sketch data if in sketch mode
+    const currentSketchData = isSketchMode && sketchCanvasRef.current
+      ? sketchCanvasRef.current.getDataURL()
+      : null;
 
-    const type = detectType(text, file);
-    
+    if (!text && !file && !currentSketchData) return;
+
+    // Determine type based on content
+    let type: ItemType;
+    if (currentSketchData) {
+      type = ItemType.SKETCH;
+    } else {
+      type = detectType(text, file);
+    }
+
     // Construct the payload
     // 암호화 시 제목 필수
     if (isEncrypted && !title.trim()) {
@@ -520,8 +535,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
 
     const newItem: Omit<Item, 'id' | 'createdAt'> & { encryptionKey?: string } = {
       type,
-      content: text,
+      content: currentSketchData ? '' : text,
       htmlContent: htmlContent,
+      sketchData: currentSketchData || undefined,
       tags: selectedTags,
       title: title || undefined,
       isFavorite: false,
@@ -545,10 +561,10 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     }
 
     onSave(newItem);
-    
+
     // Clear localStorage draft
     localStorage.removeItem(DRAFT_STORAGE_KEY);
-    
+
     // Reset
     setText('');
     setHtmlContent(undefined);
@@ -561,6 +577,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setIsEncrypted(false);
     setEncryptionKey('');
     setIsCode(false);
+    setIsSketchMode(false);
+    setSketchData(undefined);
     setReminderAt(null);
     setShowReminderPicker(false);
     setExpiresAt(null);
@@ -568,10 +586,10 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const shouldSubmit = settings.submitShortcut === 'enter' 
+    const shouldSubmit = settings.submitShortcut === 'enter'
       ? e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey
       : e.key === 'Enter' && (e.ctrlKey || e.metaKey);
-    
+
     if (shouldSubmit) {
       e.preventDefault();
       handleSubmit();
@@ -595,7 +613,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   };
 
   return (
-    <div 
+    <div
       className={`bg-white rounded-xl shadow-sm border border-slate-200 transition-all duration-200 ${isExpanded ? 'p-4' : 'p-2'}`}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
@@ -611,7 +629,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             <p className="text-sm font-medium text-slate-700 truncate">{file.name}</p>
             <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(0)} KB</p>
           </div>
-          <button 
+          <button
             onClick={() => setFile(null)}
             className="p-1 hover:bg-slate-200 rounded-full text-slate-500"
           >
@@ -638,7 +656,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               서식 제거
             </button>
           </div>
-          <div 
+          <div
             className="text-sm text-slate-700 bg-white rounded p-2 border border-purple-100 max-h-[150px] overflow-auto prose prose-sm max-w-none preview-html-content"
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
           />
@@ -743,6 +761,20 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             </button>
           )}
 
+          {/* Sketch Canvas Area */}
+          {isSketchMode && (
+            <div className="mb-2">
+              <SketchCanvas
+                ref={sketchCanvasRef}
+                onClose={() => {
+                  setIsSketchMode(false);
+                  setSketchData(undefined);
+                }}
+                initialData={sketchData}
+              />
+            </div>
+          )}
+
           {/* Tag Selection */}
           <div className="flex flex-wrap gap-2 relative">
             {availableTags.map(tag => {
@@ -753,15 +785,14 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 <button
                   key={tag.id}
                   onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(t => t !== tag.id) : [...prev, tag.id])}
-                  className={`text-xs px-2.5 py-1 rounded-full transition-colors border flex items-center gap-1 ${
-                    isSelected 
-                      ? tagColorClass 
-                        ? tagColorClass
-                        : isAutoMatched
-                          ? 'bg-amber-100 text-amber-700 border-amber-300'
-                          : 'bg-indigo-100 text-indigo-700 border-indigo-200' 
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
+                  className={`text-xs px-2.5 py-1 rounded-full transition-colors border flex items-center gap-1 ${isSelected
+                    ? tagColorClass
+                      ? tagColorClass
+                      : isAutoMatched
+                        ? 'bg-amber-100 text-amber-700 border-amber-300'
+                        : 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
                   title={isAutoMatched ? 'Auto-matched by keyword' : undefined}
                 >
                   {tag.color && <span className={`w-2 h-2 rounded-full ${getTagDotClass(tag.color)}`}></span>}
@@ -770,7 +801,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 </button>
               );
             })}
-            <button 
+            <button
               onClick={() => setShowTagManager(!showTagManager)}
               className={`text-xs px-2.5 py-1 transition-colors ${showTagManager ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`}
             >
@@ -804,7 +835,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                     <p className="p-3 text-sm text-slate-400 text-center">레이블이 없습니다</p>
                   ) : (
                     availableTags.map(tag => (
-                      <div 
+                      <div
                         key={tag.id}
                         className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 group"
                       >
@@ -838,32 +869,48 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             <button
               type="button"
               onClick={handleCodeToggle}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
-                isCode
-                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
-              }`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${isCode
+                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                }`}
             >
               <Code size={16} />
               <span className="hidden sm:inline">코드</span>
             </button>
-            
+
+            {/* Sketch Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsSketchMode(!isSketchMode);
+                if (!isSketchMode) {
+                  setIsExpanded(true);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${isSketchMode
+                ? 'bg-violet-100 text-violet-700 border border-violet-200'
+                : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                }`}
+            >
+              <Pencil size={16} />
+              <span className="hidden sm:inline">스케치</span>
+            </button>
+
             {/* Expiry Picker */}
             <div className="relative" ref={expiryPickerRef}>
               <button
                 type="button"
                 onClick={() => setShowExpiryPicker(!showExpiryPicker)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
-                  expiresAt
-                    ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
-                }`}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${expiresAt
+                  ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                  }`}
               >
                 <Timer size={16} />
                 {expiresAt ? (
                   <span className="hidden sm:inline">
-                    {new Date(expiresAt).toLocaleDateString('ko-KR', { 
-                      month: 'short', 
+                    {new Date(expiresAt).toLocaleDateString('ko-KR', {
+                      month: 'short',
                       day: 'numeric'
                     })}
                   </span>
@@ -871,8 +918,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   <span className="hidden sm:inline">만료</span>
                 )}
                 {expiresAt && (
-                  <X 
-                    size={14} 
+                  <X
+                    size={14}
                     className="ml-1 hover:text-red-500"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -881,7 +928,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   />
                 )}
               </button>
-              
+
               {showExpiryPicker && (
                 <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-48">
                   <div className="text-sm font-medium text-slate-700 mb-2">만료 기간</div>
@@ -909,23 +956,22 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 </div>
               )}
             </div>
-            
+
             {/* Reminder Picker */}
             <div className="relative" ref={reminderPickerRef}>
               <button
                 type="button"
                 onClick={() => setShowReminderPicker(!showReminderPicker)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
-                  reminderAt
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
-                }`}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${reminderAt
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                  }`}
               >
                 <Bell size={16} />
                 {reminderAt ? (
                   <span className="hidden sm:inline">
-                    {new Date(reminderAt).toLocaleDateString('ko-KR', { 
-                      month: 'short', 
+                    {new Date(reminderAt).toLocaleDateString('ko-KR', {
+                      month: 'short',
                       day: 'numeric',
                       hour: '2-digit',
                       minute: '2-digit'
@@ -935,8 +981,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   <span className="hidden sm:inline">알림</span>
                 )}
                 {reminderAt && (
-                  <X 
-                    size={14} 
+                  <X
+                    size={14}
                     className="ml-1 hover:text-red-500"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -945,7 +991,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   />
                 )}
               </button>
-              
+
               {showReminderPicker && (
                 <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 w-64">
                   <div className="text-sm font-medium text-slate-700 mb-2">알림 설정</div>
@@ -993,16 +1039,15 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 </div>
               )}
             </div>
-            
+
             {/* Encryption Toggle */}
             <button
               type="button"
               onClick={() => setIsEncrypted(!isEncrypted)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
-                isEncrypted
-                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
-              }`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${isEncrypted
+                ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                }`}
             >
               <LockKeyhole size={16} />
               <span className="hidden sm:inline">암호화</span>
@@ -1033,7 +1078,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             </div>
 
             <div className="flex items-center gap-2">
-               <button 
+              <button
                 onClick={() => {
                   setIsExpanded(false);
                   setText('');
@@ -1045,6 +1090,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   setEncryptionKey('');
                   setIsCode(false);
                   setSavedHtmlContent(undefined);
+                  setIsSketchMode(false);
+                  setSketchData(undefined);
                   setReminderAt(null);
                   setExpiresAt(null);
                   // Clear localStorage draft
@@ -1054,7 +1101,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleSubmit}
                 disabled={!text && !file}
                 className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

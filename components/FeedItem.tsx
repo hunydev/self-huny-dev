@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Item, ItemType, Tag } from '../types';
-import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Pause, Code, RotateCcw, Bell } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, Video, Copy, Trash2, Download, Star, Eye, LockKeyhole, Unlock, Play, Pause, Code, RotateCcw, Bell, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { getFileUrl } from '../services/db';
 import { linkifyText } from '../utils/linkify';
@@ -108,12 +108,12 @@ const getFileCategory = (fileName?: string, mimeType?: string): FileCategory => 
     if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'presentation';
     if (mimeType.includes('document') || mimeType.includes('word') || mimeType.includes('text/plain')) return 'document';
   }
-  
+
   // 확장자로 판단
   if (!fileName) return 'unknown';
   const ext = fileName.split('.').pop()?.toLowerCase();
   if (!ext) return 'unknown';
-  
+
   return FILE_CATEGORY_MAP[ext] || 'unknown';
 };
 
@@ -136,13 +136,13 @@ interface FeedItemProps {
   onPermanentDelete?: (id: string) => void;
 }
 
-const FeedItem: React.FC<FeedItemProps> = ({ 
-  item, 
-  tags, 
-  onDelete, 
-  onClick, 
-  onToggleFavorite, 
-  onToggleEncryption, 
+const FeedItem: React.FC<FeedItemProps> = ({
+  item,
+  tags,
+  onDelete,
+  onClick,
+  onToggleFavorite,
+  onToggleEncryption,
   compact = false,
   isTrashView = false,
   isExpiringView = false,
@@ -238,9 +238,9 @@ const FeedItem: React.FC<FeedItemProps> = ({
     const deletionDate = item.deletedAt + 30 * 24 * 60 * 60 * 1000; // 30 days
     const now = Date.now();
     const diffMs = deletionDate - now;
-    
+
     if (diffMs <= 0) return { text: '삭제 예정', isUrgent: true };
-    
+
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     if (diffDays <= 3) return { text: `${diffDays}일 후 삭제`, isUrgent: true };
     if (diffDays <= 7) return { text: `${diffDays}일 후 삭제`, isUrgent: false };
@@ -263,7 +263,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
         </div>
       );
     }
-    
+
     // Upload failed - show error
     if (item.uploadStatus === 'failed') {
       return (
@@ -276,7 +276,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
         </div>
       );
     }
-    
+
     // Encrypted item - show lock screen
     if (item.isEncrypted) {
       return (
@@ -301,7 +301,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
         </div>
       );
     }
-    
+
     switch (item.type) {
       case ItemType.IMAGE:
         return (
@@ -351,10 +351,46 @@ const FeedItem: React.FC<FeedItemProps> = ({
             </div>
           </div>
         );
+      case ItemType.SKETCH:
+        return (
+          <div className={`relative aspect-square w-full bg-white overflow-hidden border border-violet-100`}>
+            {item.sketchData ? (
+              <img
+                src={item.sketchData}
+                alt={item.title || '스케치'}
+                className="w-full h-full object-contain"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-violet-300 gap-2">
+                <Pencil size={32} />
+                <span className="text-xs">스케치</span>
+              </div>
+            )}
+            {/* 알림/만료 배지 */}
+            <div className="absolute top-2 right-2 flex items-center gap-1">
+              {!isExpiringView && item.expiresAt && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 drop-shadow-sm">
+                  {new Date(item.expiresAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 만료
+                </span>
+              )}
+              {item.reminderAt && (
+                <div title={`알림: ${new Date(item.reminderAt).toLocaleString('ko-KR')}`}>
+                  <Bell size={14} className="text-blue-500 drop-shadow-sm" />
+                </div>
+              )}
+            </div>
+            {/* 스케치 배지 */}
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">
+              <Pencil size={10} />
+              <span className="text-[10px] font-medium">스케치</span>
+            </div>
+          </div>
+        );
       case ItemType.FILE:
         const previewCheck = item.fileName ? checkPreviewSupport(item.fileName, item.fileSize) : { canPreview: false };
         const isAudio = isAudioFile(item.fileName, item.mimeType);
-        
+
         // 오디오 파일인 경우 별도 UI
         if (isAudio && fileUrl) {
           return (
@@ -371,7 +407,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   </div>
                 )}
               </div>
-              <div 
+              <div
                 className="w-14 h-14 bg-white rounded-full shadow-md flex items-center justify-center text-purple-600 cursor-pointer hover:scale-105 transition-transform"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -389,9 +425,9 @@ const FeedItem: React.FC<FeedItemProps> = ({
               </div>
               <span className="text-xs font-medium text-center truncate w-full px-2 text-slate-700">{item.fileName}</span>
               <span className="text-[10px] text-purple-500 uppercase font-medium">{item.fileName?.split('.').pop()}</span>
-              <audio 
-                ref={audioRef} 
-                src={fileUrl} 
+              <audio
+                ref={audioRef}
+                src={fileUrl}
                 onEnded={() => setIsPlaying(false)}
                 onPause={() => setIsPlaying(false)}
                 onPlay={() => setIsPlaying(true)}
@@ -400,10 +436,10 @@ const FeedItem: React.FC<FeedItemProps> = ({
             </div>
           );
         }
-        
+
         const fileStyle = getFileCategoryStyle(item.fileName, item.mimeType);
         const isCodeCategory = getFileCategory(item.fileName, item.mimeType) === 'code';
-        
+
         return (
           <div className={`p-4 flex flex-col items-center justify-center aspect-square ${fileStyle.bg} text-slate-500 gap-2 relative`}>
             {/* 우측 상단 배지들 */}
@@ -450,9 +486,9 @@ const FeedItem: React.FC<FeedItemProps> = ({
               </div>
               {/* OG Image with YouTube play overlay */}
               <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
-                <img 
-                  src={item.ogImage} 
-                  alt={item.ogTitle || 'Link preview'} 
+                <img
+                  src={item.ogImage}
+                  alt={item.ogTitle || 'Link preview'}
                   className={`w-full h-full ${imageFitClass}`}
                   loading="lazy"
                   onError={(e) => {
@@ -549,9 +585,9 @@ const FeedItem: React.FC<FeedItemProps> = ({
               <div className="border-t border-slate-100 bg-slate-50">
                 {/* OG Image */}
                 <div className={`relative aspect-[1.91/1] w-full bg-slate-100 overflow-hidden ${settings.imageFit === 'contain' ? 'bg-slate-900' : ''}`}>
-                  <img 
-                    src={item.ogImage} 
-                    alt={item.ogTitle || 'Link preview'} 
+                  <img
+                    src={item.ogImage}
+                    alt={item.ogTitle || 'Link preview'}
                     className={`w-full h-full ${imageFitClass}`}
                     loading="lazy"
                     onError={(e) => {
@@ -590,7 +626,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
             </div>
           );
         }
-        
+
         // Plain text without OG preview
         // 코드 블록 스타일
         if (item.isCode) {
@@ -618,7 +654,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
             </div>
           );
         }
-        
+
         // HTML 서식 콘텐츠가 있는 경우
         if (item.htmlContent) {
           return (
@@ -635,11 +671,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
                   </div>
                 )}
               </div>
-              <div 
+              <div
                 className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none overflow-hidden html-content-container"
-                style={{ 
-                  display: '-webkit-box', 
-                  WebkitLineClamp: 6, 
+                style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 6,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden'
                 }}
@@ -663,7 +699,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
             </div>
           );
         }
-        
+
         return (
           <div className="relative p-4 bg-white flex flex-col h-full min-h-[100px]">
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
@@ -692,6 +728,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
       switch (item.type) {
         case ItemType.IMAGE: return <ImageIcon size={16} className="text-emerald-500" />;
         case ItemType.VIDEO: return <Video size={16} className="text-purple-500" />;
+        case ItemType.SKETCH: return <Pencil size={16} className="text-violet-500" />;
         case ItemType.FILE: return <FileText size={16} className="text-orange-500" />;
         case ItemType.LINK: return <ExternalLink size={16} className="text-indigo-500" />;
         default: return <FileText size={16} className="text-slate-400" />;
@@ -707,7 +744,7 @@ const FeedItem: React.FC<FeedItemProps> = ({
     };
 
     return (
-      <div 
+      <div
         className="group flex items-center gap-3 px-3 py-2.5 bg-white border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
         onClick={onClick}
       >
@@ -715,6 +752,8 @@ const FeedItem: React.FC<FeedItemProps> = ({
         <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
           {(item.type === ItemType.IMAGE && fileUrl && !item.isEncrypted) ? (
             <img src={fileUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+          ) : (item.type === ItemType.SKETCH && item.sketchData && !item.isEncrypted) ? (
+            <img src={item.sketchData} alt="" className="w-full h-full object-contain bg-white" loading="lazy" />
           ) : (item.ogImage && !item.isEncrypted) ? (
             <img src={item.ogImage} alt="" className="w-full h-full object-cover" loading="lazy" />
           ) : (
@@ -745,11 +784,10 @@ const FeedItem: React.FC<FeedItemProps> = ({
             {itemTags.length > 0 && (
               <div className="flex gap-1">
                 {itemTags.slice(0, 2).map(tag => (
-                  <span 
-                    key={tag.id} 
-                    className={`text-[9px] px-1 py-0.5 rounded font-medium ${
-                      tag.color ? getTagBgClass(tag.color) : 'bg-slate-100 text-slate-500'
-                    }`}
+                  <span
+                    key={tag.id}
+                    className={`text-[9px] px-1 py-0.5 rounded font-medium ${tag.color ? getTagBgClass(tag.color) : 'bg-slate-100 text-slate-500'
+                      }`}
                   >
                     #{tag.name}
                   </span>
@@ -766,15 +804,15 @@ const FeedItem: React.FC<FeedItemProps> = ({
         <div className="flex items-center gap-0.5 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
           {isTrashView ? (
             <>
-              <button 
-                onClick={handleRestore} 
+              <button
+                onClick={handleRestore}
                 className="p-1.5 hover:bg-emerald-50 text-slate-300 hover:text-emerald-500 rounded"
                 title="복구"
               >
                 <RotateCcw size={14} />
               </button>
-              <button 
-                onClick={handlePermanentDelete} 
+              <button
+                onClick={handlePermanentDelete}
                 className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded"
                 title="영구 삭제"
               >
@@ -783,8 +821,8 @@ const FeedItem: React.FC<FeedItemProps> = ({
             </>
           ) : (
             <>
-              <button 
-                onClick={handleToggleFavorite} 
+              <button
+                onClick={handleToggleFavorite}
                 className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
               >
                 <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
@@ -800,12 +838,11 @@ const FeedItem: React.FC<FeedItemProps> = ({
   }
 
   return (
-    <div 
-      className={`group relative bg-white rounded-xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col cursor-pointer ${
-        item.isFavorite 
-          ? 'border-amber-300 shadow-amber-200/50 ring-1 ring-amber-200' 
-          : 'border-slate-200'
-      }`}
+    <div
+      className={`group relative bg-white rounded-xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col cursor-pointer ${item.isFavorite
+        ? 'border-amber-300 shadow-amber-200/50 ring-1 ring-amber-200'
+        : 'border-slate-200'
+        }`}
       onClick={onClick}
     >
       {/* Header / Meta */}
@@ -816,11 +853,10 @@ const FeedItem: React.FC<FeedItemProps> = ({
             {itemTags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1">
                 {itemTags.map(tag => (
-                  <span 
-                    key={tag.id} 
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                      tag.color ? getTagBgClass(tag.color) : 'bg-slate-100 text-slate-500'
-                    }`}
+                  <span
+                    key={tag.id}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tag.color ? getTagBgClass(tag.color) : 'bg-slate-100 text-slate-500'
+                      }`}
                   >
                     #{tag.name}
                   </span>
@@ -848,19 +884,19 @@ const FeedItem: React.FC<FeedItemProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-medium">{formattedDate}</span>
         </div>
-        
+
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
           {isTrashView ? (
             <>
-              <button 
-                onClick={handleRestore} 
+              <button
+                onClick={handleRestore}
                 className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-500 rounded"
                 title="복구"
               >
                 <RotateCcw size={14} />
               </button>
-              <button 
-                onClick={handlePermanentDelete} 
+              <button
+                onClick={handlePermanentDelete}
                 className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded"
                 title="영구 삭제"
               >
@@ -869,16 +905,16 @@ const FeedItem: React.FC<FeedItemProps> = ({
             </>
           ) : (
             <>
-              <button 
-                onClick={handleToggleFavorite} 
-                className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`} 
+              <button
+                onClick={handleToggleFavorite}
+                className={`p-1.5 hover:bg-amber-50 rounded ${item.isFavorite ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`}
                 title={item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >
                 <Star size={14} fill={item.isFavorite ? 'currentColor' : 'none'} />
               </button>
               {onToggleEncryption && (
-                <button 
-                  onClick={handleToggleEncryption} 
+                <button
+                  onClick={handleToggleEncryption}
                   className={`p-1.5 rounded ${item.isEncrypted ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}
                   title={item.isEncrypted ? '암호화 해제' : '암호화'}
                 >
