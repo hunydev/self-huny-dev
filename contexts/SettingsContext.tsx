@@ -7,6 +7,7 @@ export interface Settings {
   compactMode: boolean;
   submitShortcut: 'enter' | 'ctrl+enter';
   imageFit: 'cover' | 'contain';
+  fontFamily: 'system' | 'pretendard' | 'noto-sans' | 'inter' | 'spoqa';
 }
 
 const defaultSettings: Settings = {
@@ -16,6 +17,7 @@ const defaultSettings: Settings = {
   compactMode: false,
   submitShortcut: 'ctrl+enter',
   imageFit: 'cover',
+  fontFamily: 'system',
 };
 
 interface SettingsContextType {
@@ -48,6 +50,18 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       console.error('Failed to save settings:', e);
     }
   }, [settings]);
+
+  // Apply font family to document body
+  useEffect(() => {
+    const fontMap: Record<Settings['fontFamily'], string> = {
+      'system': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      'pretendard': '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, sans-serif',
+      'noto-sans': '"Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif',
+      'inter': '"Inter", -apple-system, BlinkMacSystemFont, sans-serif',
+      'spoqa': '"Spoqa Han Sans Neo", -apple-system, BlinkMacSystemFont, sans-serif',
+    };
+    document.body.style.fontFamily = fontMap[settings.fontFamily];
+  }, [settings.fontFamily]);
 
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));

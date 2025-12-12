@@ -159,6 +159,41 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+          {/* Font Family */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              글꼴
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'system', label: 'System Default', fontClass: '' },
+                { value: 'pretendard', label: 'Pretendard', fontClass: 'font-pretendard' },
+                { value: 'noto-sans', label: 'Noto Sans KR', fontClass: 'font-noto-sans' },
+                { value: 'inter', label: 'Inter', fontClass: 'font-inter' },
+                { value: 'spoqa', label: 'Spoqa Han Sans', fontClass: 'font-spoqa' },
+              ].map(font => (
+                <button
+                  key={font.value}
+                  onClick={() => updateSetting('fontFamily', font.value as Settings['fontFamily'])}
+                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                    settings.fontFamily === font.value
+                      ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
+                  }`}
+                  style={{
+                    fontFamily: font.value === 'system' ? 'inherit' :
+                      font.value === 'pretendard' ? '"Pretendard Variable", Pretendard, sans-serif' :
+                      font.value === 'noto-sans' ? '"Noto Sans KR", sans-serif' :
+                      font.value === 'inter' ? '"Inter", sans-serif' :
+                      '"Spoqa Han Sans Neo", sans-serif'
+                  }}
+                >
+                  {font.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Submit Shortcut */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
