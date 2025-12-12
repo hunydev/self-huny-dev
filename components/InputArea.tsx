@@ -70,6 +70,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [isFormatting, setIsFormatting] = useState(false);
   const [hasContent, setHasContent] = useState(false); // Track if user has entered content
+  const [savedHtmlContent, setSavedHtmlContent] = useState<string | undefined>(undefined); // Save htmlContent when switching to code mode
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const reminderPickerRef = useRef<HTMLDivElement>(null);
   const expiryPickerRef = useRef<HTMLDivElement>(null);
@@ -418,6 +419,25 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     }
   };
 
+  // Handle code mode toggle - save/restore htmlContent
+  const handleCodeToggle = useCallback(() => {
+    if (!isCode) {
+      // Turning ON code mode - save htmlContent if exists
+      if (htmlContent) {
+        setSavedHtmlContent(htmlContent);
+        setHtmlContent(undefined);
+      }
+      setIsCode(true);
+    } else {
+      // Turning OFF code mode - restore htmlContent if saved
+      if (savedHtmlContent) {
+        setHtmlContent(savedHtmlContent);
+        setSavedHtmlContent(undefined);
+      }
+      setIsCode(false);
+    }
+  }, [isCode, htmlContent, savedHtmlContent]);
+
   // Handle blur - collapse only if no content
   const handleBlur = useCallback((e: React.FocusEvent) => {
     // Check if focus is moving to a child element
@@ -482,6 +502,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     // Reset
     setText('');
     setHtmlContent(undefined);
+    setSavedHtmlContent(undefined);
     setTitle('');
     setFile(null);
     setSelectedTags([]);
@@ -549,8 +570,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
         </div>
       )}
 
-      {/* HTML Rich Text Preview */}
-      {htmlContent && (
+      {/* HTML Rich Text Preview - hidden in code mode */}
+      {htmlContent && !isCode && (
         <div className="mb-3 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-100">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-purple-600 flex items-center gap-1">
@@ -560,6 +581,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             <button
               onClick={() => {
                 setHtmlContent(undefined);
+                setSavedHtmlContent(undefined);
               }}
               className="text-xs text-purple-500 hover:text-purple-700 px-2 py-0.5 rounded hover:bg-purple-100 transition-colors"
             >
@@ -593,19 +615,44 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
         </div>
       )}
 
-      {/* Main Input */}
-      <div className="flex gap-2">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onFocus={() => setIsExpanded(true)}
-          onKeyDown={handleKeyDown}
-          placeholder={file ? "Add a caption or title (optional)..." : "Paste link, type note, or drop file..."}
-          className="w-full resize-none bg-transparent outline-none text-slate-700 placeholder:text-slate-400 min-h-[44px] py-2.5 max-h-[300px]"
-          rows={1}
-        />
-      </div>
+      {/* Main Input - Code mode styled */}
+      {isCode ? (
+        <div className="relative rounded-lg overflow-hidden">
+          <div className="absolute top-2 left-3 flex items-center gap-2 text-slate-400 pointer-events-none z-10">
+            <Code size={14} className="text-emerald-400" />
+            <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-400/70">Code</span>
+            {savedHtmlContent && (
+              <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded ml-2">
+                서식 저장됨
+              </span>
+            )}
+          </div>
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onFocus={() => setIsExpanded(true)}
+            onKeyDown={handleKeyDown}
+            placeholder="코드를 입력하세요..."
+            className="w-full resize-none bg-slate-900 text-slate-100 font-mono text-sm outline-none placeholder:text-slate-500 min-h-[120px] p-3 pt-8 max-h-[400px] rounded-lg leading-relaxed"
+            rows={5}
+            spellCheck={false}
+          />
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onFocus={() => setIsExpanded(true)}
+            onKeyDown={handleKeyDown}
+            placeholder={file ? "Add a caption or title (optional)..." : "Paste link, type note, or drop file..."}
+            className="w-full resize-none bg-transparent outline-none text-slate-700 placeholder:text-slate-400 min-h-[44px] py-2.5 max-h-[300px]"
+            rows={1}
+          />
+        </div>
+      )}
 
       {/* Expanded Controls */}
       {isExpanded && (
@@ -740,7 +787,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             {/* Code Toggle */}
             <button
               type="button"
-              onClick={() => setIsCode(!isCode)}
+              onClick={handleCodeToggle}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                 isCode
                   ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
