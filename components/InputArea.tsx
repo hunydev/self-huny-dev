@@ -592,6 +592,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
 
     if (shouldSubmit) {
       e.preventDefault();
+      // Blur textarea to properly collapse the input area
+      textareaRef.current?.blur();
       handleSubmit();
     }
   };
@@ -1103,7 +1105,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!text && !file}
+                disabled={!text && !file && !isSketchMode}
                 className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send size={16} />
