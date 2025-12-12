@@ -388,8 +388,8 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
                         </button>
 
                         {showColorPicker && (
-                            <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
-                                <div className="grid grid-cols-5 gap-1">
+                            <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[180px]">
+                                <div className="grid grid-cols-5 gap-1.5">
                                     {PRESET_COLORS.map((color) => (
                                         <button
                                             key={color}
@@ -397,7 +397,7 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
                                                 setCurrentColor(color);
                                                 setShowColorPicker(false);
                                             }}
-                                            className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${currentColor === color
+                                            className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${currentColor === color
                                                 ? 'border-violet-500 ring-2 ring-violet-200'
                                                 : 'border-slate-200'
                                                 }`}
