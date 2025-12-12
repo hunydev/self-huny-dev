@@ -7,7 +7,7 @@ import { shareRoutes } from './routes/share';
 import { ogRoutes, parseOgMetadata } from './routes/og';
 import { geminiRoutes } from './routes/gemini';
 import { uploadFileToR2 } from './utils/uploadFile';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, AuthUser } from './middleware/auth';
 
 export interface Env {
   DB: D1Database;
@@ -17,7 +17,11 @@ export interface Env {
   GEMINI_API_KEY: SecretsStoreSecret;
 }
 
-const app = new Hono<{ Bindings: Env }>();
+export interface Variables {
+  user: AuthUser;
+}
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // CORS middleware
 app.use('/api/*', cors({

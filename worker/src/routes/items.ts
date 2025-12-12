@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
 import { parseOgMetadata } from './og';
 import { getUser } from '../middleware/auth';
 
-export const itemsRoutes = new Hono<{ Bindings: Env }>();
+export const itemsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Get user stats - MUST be before /:id route
 itemsRoutes.get('/stats', async (c) => {

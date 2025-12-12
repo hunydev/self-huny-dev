@@ -1,10 +1,7 @@
 import { Hono } from 'hono';
+import type { Env, Variables } from '../index';
 
-interface Env {
-  GEMINI_API_KEY: SecretsStoreSecret;
-}
-
-export const geminiRoutes = new Hono<{ Bindings: Env }>();
+export const geminiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Gemini API endpoint for title suggestion
 geminiRoutes.post('/suggest-title', async (c) => {

@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import type { Env } from '../index';
+import type { Env, Variables } from '../index';
 import { getUser } from '../middleware/auth';
 
-export const tagsRoutes = new Hono<{ Bindings: Env }>();
+export const tagsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Get all tags
 tagsRoutes.get('/', async (c) => {
