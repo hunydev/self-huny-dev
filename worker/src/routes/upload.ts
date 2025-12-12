@@ -61,8 +61,8 @@ uploadRoutes.get('/:key', async (c) => {
   }
 });
 
-// Delete file from R2
-uploadRoutes.delete('/:key', async (c) => {
+// Delete file from R2 - requires authentication
+uploadRoutes.delete('/:key', authMiddleware, async (c) => {
   const key = c.req.param('key');
 
   try {

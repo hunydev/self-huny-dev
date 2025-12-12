@@ -33,7 +33,7 @@ app.use('/api/*', cors({
 // Auth middleware for protected routes
 app.use('/api/items/*', authMiddleware);
 app.use('/api/tags/*', authMiddleware);
-app.use('/api/upload/*', authMiddleware);
+// Note: /api/upload uses route-level auth - GET is public, POST/DELETE require auth
 app.use('/api/user/*', authMiddleware);
 app.use('/api/gemini/*', authMiddleware);
 
