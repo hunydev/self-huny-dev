@@ -164,11 +164,19 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
 
   // Auto-resize textarea
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
-    }
-  }, [text]);
+    // Use setTimeout to ensure DOM is updated after isCode toggle
+    const adjustHeight = () => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      }
+    };
+    // Immediate call for text changes
+    adjustHeight();
+    // Delayed call for isCode toggle (DOM needs to update first)
+    const timeoutId = setTimeout(adjustHeight, 0);
+    return () => clearTimeout(timeoutId);
+  }, [text, isCode]);
 
   // Close reminder picker on outside click
   useEffect(() => {
