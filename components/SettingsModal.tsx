@@ -177,7 +177,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             </select>
           </div>
 
-          {/* Submit Shortcut */}}
+          {/* Submit Shortcut */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
               아이템 저장 단축키
