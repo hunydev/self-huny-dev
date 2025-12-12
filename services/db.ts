@@ -19,6 +19,9 @@ interface ApiItem {
   isFavorite: boolean;
   isEncrypted: boolean;
   isCode?: boolean;
+  reminderAt?: number;
+  expiresAt?: number;
+  deletedAt?: number;
   createdAt: number;
 }
 
@@ -71,6 +74,9 @@ const transformItem = (apiItem: ApiItem): Item => ({
   isFavorite: apiItem.isFavorite || false,
   isEncrypted: apiItem.isEncrypted || false,
   isCode: apiItem.isCode || false,
+  reminderAt: apiItem.reminderAt,
+  expiresAt: apiItem.expiresAt,
+  deletedAt: apiItem.deletedAt,
   createdAt: apiItem.createdAt,
 });
 
