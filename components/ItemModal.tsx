@@ -815,7 +815,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
       
       {/* Modal */}
       <div 
-        className={`relative bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col transition-all duration-200 ${isWideMode ? 'max-w-5xl' : 'max-w-2xl'}`}
+        className={`relative bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col transition-all duration-200 ${isWideMode ? 'max-w-6xl' : 'max-w-2xl'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -1016,10 +1016,10 @@ const ItemModal: React.FC<ItemModalProps> = ({ item, tags, isOpen, onClose, onUp
                 {item.isEncrypted ? <Unlock size={20} /> : <LockKeyhole size={20} />}
               </button>
             )}
-            {/* 와이드 모드 토글 버튼 */}
+            {/* 와이드 모드 토글 버튼 - 모바일에서 숨김 */}
             <button
               onClick={() => setIsWideMode(!isWideMode)}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`hidden md:block p-2 rounded-lg transition-colors ${
                 isWideMode
                   ? 'text-indigo-500 hover:bg-indigo-50'
                   : 'text-slate-400 hover:text-indigo-500 hover:bg-indigo-50'
