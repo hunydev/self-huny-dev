@@ -91,6 +91,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   const [savedHtmlContent, setSavedHtmlContent] = useState<string | undefined>(draft?.savedHtmlContent || undefined); // Save htmlContent when switching to code mode
   const [isSketchMode, setIsSketchMode] = useState(false); // Sketch mode toggle
   const [sketchData, setSketchData] = useState<string | undefined>(undefined); // Sketch image data
+  const [hasSketchContent, setHasSketchContent] = useState(false); // Track if canvas has content
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const reminderPickerRef = useRef<HTMLDivElement>(null);
   const expiryPickerRef = useRef<HTMLDivElement>(null);
@@ -506,7 +507,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     }
   }, [hasContent]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Get sketch data if in sketch mode
     const currentSketchData = isSketchMode && sketchCanvasRef.current
       ? sketchCanvasRef.current.getDataURL()
@@ -514,10 +515,22 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
 
     if (!text && !file && !currentSketchData) return;
 
+    // Convert sketch data URL to Blob if in sketch mode
+    let sketchBlob: Blob | null = null;
+    if (currentSketchData) {
+      try {
+        const response = await fetch(currentSketchData);
+        sketchBlob = await response.blob();
+      } catch (e) {
+        console.error('Failed to convert sketch to blob:', e);
+        return;
+      }
+    }
+
     // Determine type based on content
     let type: ItemType;
-    if (currentSketchData) {
-      type = ItemType.SKETCH;
+    if (sketchBlob) {
+      type = ItemType.IMAGE; // Sketch is saved as IMAGE type
     } else {
       type = detectType(text, file);
     }
@@ -535,9 +548,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
 
     const newItem: Omit<Item, 'id' | 'createdAt'> & { encryptionKey?: string } = {
       type,
-      content: currentSketchData ? '' : text,
+      content: sketchBlob ? '' : text,
       htmlContent: htmlContent,
-      sketchData: currentSketchData || undefined,
       tags: selectedTags,
       title: title || undefined,
       isFavorite: false,
@@ -548,7 +560,14 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
       expiresAt: expiresAt || undefined,
     };
 
-    if (file) {
+    // Handle sketch as image file
+    if (sketchBlob) {
+      const timestamp = Date.now();
+      newItem.fileBlob = sketchBlob;
+      newItem.fileName = `sketch_${timestamp}.png`;
+      newItem.fileSize = sketchBlob.size;
+      newItem.mimeType = 'image/png';
+    } else if (file) {
       newItem.fileBlob = file;
       newItem.fileName = file.name;
       newItem.fileSize = file.size;
@@ -579,6 +598,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
     setIsCode(false);
     setIsSketchMode(false);
     setSketchData(undefined);
+    setHasSketchContent(false);
     setReminderAt(null);
     setShowReminderPicker(false);
     setExpiresAt(null);
@@ -685,43 +705,45 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
         </div>
       )}
 
-      {/* Main Input - Code mode styled */}
-      {isCode ? (
-        <div className="relative rounded-lg overflow-hidden">
-          <div className="absolute top-2 left-3 flex items-center gap-2 text-slate-400 pointer-events-none z-10">
-            <Code size={14} className="text-emerald-400" />
-            <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-400/70">Code</span>
-            {savedHtmlContent && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded ml-2">
-                서식 저장됨
-              </span>
-            )}
+      {/* Main Input - Code mode styled (hidden in sketch mode) */}
+      {!isSketchMode && (
+        isCode ? (
+          <div className="relative rounded-lg overflow-hidden">
+            <div className="absolute top-2 left-3 flex items-center gap-2 text-slate-400 pointer-events-none z-10">
+              <Code size={14} className="text-emerald-400" />
+              <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-400/70">Code</span>
+              {savedHtmlContent && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded ml-2">
+                  서식 저장됨
+                </span>
+              )}
+            </div>
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onFocus={() => setIsExpanded(true)}
+              onKeyDown={handleKeyDown}
+              placeholder="코드를 입력하세요..."
+              className="w-full resize-none bg-slate-900 text-slate-100 font-mono text-sm outline-none placeholder:text-slate-500 min-h-[44px] p-3 pt-8 max-h-[300px] rounded-lg leading-relaxed"
+              rows={1}
+              spellCheck={false}
+            />
           </div>
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onFocus={() => setIsExpanded(true)}
-            onKeyDown={handleKeyDown}
-            placeholder="코드를 입력하세요..."
-            className="w-full resize-none bg-slate-900 text-slate-100 font-mono text-sm outline-none placeholder:text-slate-500 min-h-[44px] p-3 pt-8 max-h-[300px] rounded-lg leading-relaxed"
-            rows={1}
-            spellCheck={false}
-          />
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onFocus={() => setIsExpanded(true)}
-            onKeyDown={handleKeyDown}
-            placeholder={file ? "Add a caption or title (optional)..." : "Paste link, type note, or drop file..."}
-            className="w-full resize-none bg-transparent outline-none text-slate-700 placeholder:text-slate-400 min-h-[44px] py-2.5 max-h-[300px]"
-            rows={1}
-          />
-        </div>
+        ) : (
+          <div className="flex gap-2">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onFocus={() => setIsExpanded(true)}
+              onKeyDown={handleKeyDown}
+              placeholder={file ? "Add a caption or title (optional)..." : "Paste link, type note, or drop file..."}
+              className="w-full resize-none bg-transparent outline-none text-slate-700 placeholder:text-slate-400 min-h-[44px] py-2.5 max-h-[300px]"
+              rows={1}
+            />
+          </div>
+        )
       )}
 
       {/* Expanded Controls */}
@@ -771,7 +793,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                 onClose={() => {
                   setIsSketchMode(false);
                   setSketchData(undefined);
+                  setHasSketchContent(false);
                 }}
+                onContentChange={(hasContent) => setHasSketchContent(hasContent)}
                 initialData={sketchData}
               />
             </div>
@@ -1094,6 +1118,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   setSavedHtmlContent(undefined);
                   setIsSketchMode(false);
                   setSketchData(undefined);
+                  setHasSketchContent(false);
                   setReminderAt(null);
                   setExpiresAt(null);
                   // Clear localStorage draft
@@ -1105,7 +1130,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!text && !file && !isSketchMode}
+                disabled={!text && !file && !hasSketchContent}
                 className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send size={16} />

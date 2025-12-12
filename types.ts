@@ -4,7 +4,6 @@ export enum ItemType {
   IMAGE = 'image',
   VIDEO = 'video',
   FILE = 'file',
-  SKETCH = 'sketch',
 }
 
 export interface Tag {
@@ -32,7 +31,6 @@ export interface Item {
   isEncrypted: boolean; // Encryption flag
   isCode?: boolean; // Code block flag
   htmlContent?: string; // Rich HTML content with formatting
-  sketchData?: string; // Base64 encoded sketch image data
   uploadStatus?: 'uploading' | 'failed' | null; // Background upload status (null = completed)
   reminderAt?: number; // Reminder timestamp (for scheduled items)
   expiresAt?: number; // Expiration timestamp (for auto-delete items)

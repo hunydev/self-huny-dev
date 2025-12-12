@@ -111,11 +111,11 @@ export const getItems = async (type?: ItemType | 'all', encrypted?: boolean): Pr
   const response = await fetch(url, {
     headers: getAuthHeaders(),
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch items');
   }
-  
+
   const data: ApiItem[] = await response.json();
   return data.map(transformItem);
 };
@@ -125,11 +125,11 @@ export const getItem = async (id: string): Promise<Item> => {
   const response = await fetch(`${API_BASE}/items/${id}`, {
     headers: getAuthHeaders(),
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch item');
   }
-  
+
   const data: ApiItem = await response.json();
   return transformItem(data);
 };
@@ -139,8 +139,8 @@ export type UploadProgressCallback = (progress: number) => void;
 
 // Upload file with progress tracking using XMLHttpRequest
 const uploadFileWithProgress = (
-  file: Blob, 
-  fileName: string, 
+  file: Blob,
+  fileName: string,
   onProgress?: UploadProgressCallback
 ): Promise<UploadResult> => {
   return new Promise((resolve, reject) => {
@@ -148,7 +148,7 @@ const uploadFileWithProgress = (
     formData.append('file', file, fileName);
 
     const xhr = new XMLHttpRequest();
-    
+
     xhr.upload.addEventListener('progress', (event) => {
       if (event.lengthComputable && onProgress) {
         const progress = Math.round((event.loaded / event.total) * 100);
@@ -178,13 +178,13 @@ const uploadFileWithProgress = (
     });
 
     xhr.open('POST', `${API_BASE}/upload`);
-    
+
     // Add Authorization header
     const token = getAuthToken();
     if (token) {
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     }
-    
+
     xhr.send(formData);
   });
 };
@@ -206,7 +206,7 @@ export const saveItem = async (
       item.fileName || 'file',
       onProgress
     );
-    
+
     fileKey = uploadResult.fileKey;
     fileName = uploadResult.fileName;
     fileSize = uploadResult.fileSize;
@@ -265,11 +265,11 @@ export const getTags = async (): Promise<Tag[]> => {
   const response = await fetch(`${API_BASE}/tags`, {
     headers: getAuthHeaders(),
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch tags');
   }
-  
+
   const data: ApiTag[] = await response.json();
   return data.map(transformTag);
 };
@@ -363,7 +363,7 @@ export const getFileUrl = (fileKey: string): string => {
 // Verify encryption key for an item
 export const verifyEncryptionKey = async (itemId: string, key: string): Promise<boolean> => {
   const keyHash = await hashEncryptionKey(key);
-  
+
   const response = await fetch(`${API_BASE}/items/${itemId}/verify`, {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -381,7 +381,7 @@ export const verifyEncryptionKey = async (itemId: string, key: string): Promise<
 // Unlock encrypted item and get full content
 export const unlockItem = async (itemId: string, key: string): Promise<Item> => {
   const keyHash = await hashEncryptionKey(key);
-  
+
   const response = await fetch(`${API_BASE}/items/${itemId}/unlock`, {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -399,23 +399,23 @@ export const unlockItem = async (itemId: string, key: string): Promise<Item> => 
 
 // Toggle item encryption status
 export const toggleEncryption = async (
-  itemId: string, 
-  isEncrypted: boolean, 
+  itemId: string,
+  isEncrypted: boolean,
   key: string,
   title?: string
 ): Promise<void> => {
   const keyHash = await hashEncryptionKey(key);
-  
+
   const body: Record<string, unknown> = {
     isEncrypted,
     encryptionHash: keyHash,
   };
-  
+
   // If enabling encryption and title is provided, update title too
   if (isEncrypted && title) {
     body.title = title;
   }
-  
+
   const response = await fetch(`${API_BASE}/items/${itemId}`, {
     method: 'PUT',
     headers: getAuthHeaders(),

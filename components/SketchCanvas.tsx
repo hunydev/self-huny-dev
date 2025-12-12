@@ -30,11 +30,12 @@ interface SketchCanvasProps {
     width?: number;
     height?: number;
     onClose?: () => void;
+    onContentChange?: (hasContent: boolean) => void;
     initialData?: string;
 }
 
 const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
-    ({ width = 600, height = 300, onClose, initialData }, ref) => {
+    ({ width = 600, height = 300, onClose, onContentChange, initialData }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const [isDrawing, setIsDrawing] = useState(false);
@@ -181,8 +182,25 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
                 setIsDrawing(false);
                 setCurrentPath([]);
                 saveState();
+                // Notify parent that canvas has content (check inline)
+                const canvas = canvasRef.current;
+                if (canvas && onContentChange) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const data = imageData.data;
+                        let hasContent = false;
+                        for (let i = 0; i < data.length; i += 4) {
+                            if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
+                                hasContent = true;
+                                break;
+                            }
+                        }
+                        onContentChange(hasContent);
+                    }
+                }
             }
-        }, [isDrawing, saveState]);
+        }, [isDrawing, saveState, onContentChange]);
 
         // Undo
         const handleUndo = useCallback(() => {
@@ -197,7 +215,22 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
             const newIndex = historyIndex - 1;
             ctx.putImageData(history[newIndex], 0, 0);
             setHistoryIndex(newIndex);
-        }, [history, historyIndex]);
+            // Notify parent about content change after undo
+            if (onContentChange) {
+                setTimeout(() => {
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    let hasContent = false;
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
+                            hasContent = true;
+                            break;
+                        }
+                    }
+                    onContentChange(hasContent);
+                }, 0);
+            }
+        }, [history, historyIndex, onContentChange]);
 
         // Redo
         const handleRedo = useCallback(() => {
@@ -212,7 +245,22 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
             const newIndex = historyIndex + 1;
             ctx.putImageData(history[newIndex], 0, 0);
             setHistoryIndex(newIndex);
-        }, [history, historyIndex]);
+            // Notify parent about content change after redo
+            if (onContentChange) {
+                setTimeout(() => {
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    let hasContent = false;
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
+                            hasContent = true;
+                            break;
+                        }
+                    }
+                    onContentChange(hasContent);
+                }, 0);
+            }
+        }, [history, historyIndex, onContentChange]);
 
         // Clear canvas
         const handleClear = useCallback(() => {
@@ -225,7 +273,9 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             saveState();
-        }, [saveState]);
+            // Notify parent that canvas is now empty
+            onContentChange?.(false);
+        }, [saveState, onContentChange]);
 
         // Check if canvas is empty (all white)
         const isEmpty = useCallback(() => {
