@@ -51,26 +51,43 @@ export interface InputAreaHandle {
 }
 
 const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availableTags, autoFocus, onAddTag, onDeleteTag, activeTagFilter }, ref) => {
-  const [text, setText] = useState('');
-  const [htmlContent, setHtmlContent] = useState<string | undefined>(undefined);
-  const [title, setTitle] = useState('');
+  const DRAFT_STORAGE_KEY = 'self-input-draft';
+  
+  // Load draft from localStorage on mount
+  const loadDraft = () => {
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load draft:', e);
+    }
+    return null;
+  };
+  
+  const draft = loadDraft();
+  
+  const [text, setText] = useState(draft?.text || '');
+  const [htmlContent, setHtmlContent] = useState<string | undefined>(draft?.htmlContent || undefined);
+  const [title, setTitle] = useState(draft?.title || '');
   const [file, setFile] = useState<File | null>(null);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>(draft?.selectedTags || []);
   const [autoMatchedTags, setAutoMatchedTags] = useState<string[]>([]); // Track which tags were auto-matched
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [isEncrypted, setIsEncrypted] = useState(false);
+  const [isEncrypted, setIsEncrypted] = useState(draft?.isEncrypted || false);
   const [encryptionKey, setEncryptionKey] = useState('');
-  const [isCode, setIsCode] = useState(false);
-  const [reminderAt, setReminderAt] = useState<number | null>(null);
+  const [isCode, setIsCode] = useState(draft?.isCode || false);
+  const [reminderAt, setReminderAt] = useState<number | null>(draft?.reminderAt || null);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
-  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [expiresAt, setExpiresAt] = useState<number | null>(draft?.expiresAt || null);
   const [showExpiryPicker, setShowExpiryPicker] = useState(false);
   const [isSuggestingTitle, setIsSuggestingTitle] = useState(false);
   const [isFormatting, setIsFormatting] = useState(false);
   const [hasContent, setHasContent] = useState(false); // Track if user has entered content
-  const [savedHtmlContent, setSavedHtmlContent] = useState<string | undefined>(undefined); // Save htmlContent when switching to code mode
+  const [savedHtmlContent, setSavedHtmlContent] = useState<string | undefined>(draft?.savedHtmlContent || undefined); // Save htmlContent when switching to code mode
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const reminderPickerRef = useRef<HTMLDivElement>(null);
   const expiryPickerRef = useRef<HTMLDivElement>(null);
@@ -134,6 +151,28 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
   useEffect(() => {
     setHasContent(!!(text || file || title || htmlContent || selectedTags.length > 0 || isEncrypted || isCode || reminderAt || expiresAt));
   }, [text, file, title, htmlContent, selectedTags, isEncrypted, isCode, reminderAt, expiresAt]);
+
+  // Save draft to localStorage when content changes
+  useEffect(() => {
+    const hasDraftContent = text || title || htmlContent || isCode || isEncrypted || reminderAt || expiresAt || savedHtmlContent || selectedTags.length > 0;
+    if (hasDraftContent) {
+      try {
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+          text,
+          title,
+          htmlContent,
+          selectedTags,
+          isEncrypted,
+          isCode,
+          reminderAt,
+          expiresAt,
+          savedHtmlContent,
+        }));
+      } catch (e) {
+        console.error('Failed to save draft:', e);
+      }
+    }
+  }, [text, title, htmlContent, selectedTags, isEncrypted, isCode, reminderAt, expiresAt, savedHtmlContent]);
 
   // Expose focus and setShareData methods to parent
   useImperativeHandle(ref, () => ({
@@ -507,6 +546,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
 
     onSave(newItem);
     
+    // Clear localStorage draft
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    
     // Reset
     setText('');
     setHtmlContent(undefined);
@@ -642,8 +684,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
             onFocus={() => setIsExpanded(true)}
             onKeyDown={handleKeyDown}
             placeholder="코드를 입력하세요..."
-            className="w-full resize-none bg-slate-900 text-slate-100 font-mono text-sm outline-none placeholder:text-slate-500 min-h-[120px] p-3 pt-8 max-h-[400px] rounded-lg leading-relaxed"
-            rows={5}
+            className="w-full resize-none bg-slate-900 text-slate-100 font-mono text-sm outline-none placeholder:text-slate-500 min-h-[44px] p-3 pt-8 max-h-[300px] rounded-lg leading-relaxed"
+            rows={1}
             spellCheck={false}
           />
         </div>
@@ -997,6 +1039,16 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({ onSave, availab
                   setText('');
                   setHtmlContent(undefined);
                   setFile(null);
+                  setTitle('');
+                  setSelectedTags([]);
+                  setIsEncrypted(false);
+                  setEncryptionKey('');
+                  setIsCode(false);
+                  setSavedHtmlContent(undefined);
+                  setReminderAt(null);
+                  setExpiresAt(null);
+                  // Clear localStorage draft
+                  localStorage.removeItem(DRAFT_STORAGE_KEY);
                 }}
                 className="px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 rounded-lg"
               >
