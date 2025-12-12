@@ -164,37 +164,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             <label className="block text-sm font-medium text-slate-700 mb-2">
               글꼴
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { value: 'system', label: 'System Default', fontClass: '' },
-                { value: 'pretendard', label: 'Pretendard', fontClass: 'font-pretendard' },
-                { value: 'noto-sans', label: 'Noto Sans KR', fontClass: 'font-noto-sans' },
-                { value: 'inter', label: 'Inter', fontClass: 'font-inter' },
-                { value: 'spoqa', label: 'Spoqa Han Sans', fontClass: 'font-spoqa' },
-              ].map(font => (
-                <button
-                  key={font.value}
-                  onClick={() => updateSetting('fontFamily', font.value as Settings['fontFamily'])}
-                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                    settings.fontFamily === font.value
-                      ? 'bg-indigo-100 text-indigo-700 border-2 border-indigo-300'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-2 border-transparent'
-                  }`}
-                  style={{
-                    fontFamily: font.value === 'system' ? 'inherit' :
-                      font.value === 'pretendard' ? '"Pretendard Variable", Pretendard, sans-serif' :
-                      font.value === 'noto-sans' ? '"Noto Sans KR", sans-serif' :
-                      font.value === 'inter' ? '"Inter", sans-serif' :
-                      '"Spoqa Han Sans Neo", sans-serif'
-                  }}
-                >
-                  {font.label}
-                </button>
-              ))}
-            </div>
+            <select
+              value={settings.fontFamily}
+              onChange={(e) => updateSetting('fontFamily', e.target.value as Settings['fontFamily'])}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="pretendard">Pretendard</option>
+              <option value="noto-sans">Noto Sans KR</option>
+              <option value="inter">Inter</option>
+              <option value="spoqa">Spoqa Han Sans</option>
+              <option value="system">System Default</option>
+            </select>
           </div>
 
-          {/* Submit Shortcut */}
+          {/* Submit Shortcut */}}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
               아이템 저장 단축키

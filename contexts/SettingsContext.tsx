@@ -17,7 +17,7 @@ const defaultSettings: Settings = {
   compactMode: false,
   submitShortcut: 'ctrl+enter',
   imageFit: 'cover',
-  fontFamily: 'system',
+  fontFamily: 'pretendard',
 };
 
 interface SettingsContextType {
