@@ -460,3 +460,102 @@ export const updateItemExpiry = async (itemId: string, expiresAt: number | null)
     throw new Error('Failed to update item expiry');
   }
 };
+
+// Get trash items
+export const getTrashItems = async (): Promise<(Item & { deletedAt?: number })[]> => {
+  const response = await fetch(`${API_BASE}/items/trash`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch trash items');
+  }
+
+  const data: (ApiItem & { deletedAt?: number })[] = await response.json();
+  return data.map(item => ({
+    ...transformItem(item),
+    deletedAt: item.deletedAt,
+  }));
+};
+
+// Restore item from trash
+export const restoreItem = async (itemId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}/restore`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to restore item');
+  }
+};
+
+// Permanently delete item
+export const permanentDeleteItem = async (itemId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/items/${itemId}/permanent`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to permanently delete item');
+  }
+};
+
+// Empty trash
+export const emptyTrash = async (): Promise<number> => {
+  const response = await fetch(`${API_BASE}/items/trash/empty`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to empty trash');
+  }
+
+  const data = await response.json() as { deleted: number };
+  return data.deleted;
+};
+
+// Get scheduled items (items with reminders)
+export const getScheduledItems = async (): Promise<Item[]> => {
+  const response = await fetch(`${API_BASE}/items/scheduled`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch scheduled items');
+  }
+
+  const data: ApiItem[] = await response.json();
+  return data.map(transformItem);
+};
+
+// Get expiring items (items with expiration date)
+export const getExpiringItems = async (): Promise<Item[]> => {
+  const response = await fetch(`${API_BASE}/items/expiring`, {
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch expiring items');
+  }
+
+  const data: ApiItem[] = await response.json();
+  return data.map(transformItem);
+};
+
+// Check and auto-expire items
+export const checkExpiredItems = async (): Promise<number> => {
+  const response = await fetch(`${API_BASE}/items/expire-check`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to check expired items');
+  }
+
+  const data: { expired: number } = await response.json();
+  return data.expired || 0;
+};
