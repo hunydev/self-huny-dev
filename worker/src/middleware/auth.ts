@@ -67,3 +67,8 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: () => 
 export function getUser(c: Context): AuthUser {
   return c.get('user') as AuthUser;
 }
+
+// Helper to get optional user from context (returns undefined if not authenticated)
+export function getOptionalUser(c: Context): AuthUser | undefined {
+  return c.get('user') as AuthUser | undefined;
+}
