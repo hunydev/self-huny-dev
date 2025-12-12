@@ -205,6 +205,21 @@ const FeedItem: React.FC<FeedItemProps> = ({
     return format(item.createdAt, 'MMM d, h:mm a');
   }, [item.createdAt, settings.dateFormat]);
 
+  // Calculate days until permanent deletion (30 days from deletedAt)
+  const deletionInfo = useMemo(() => {
+    if (!item.deletedAt || !isTrashView) return null;
+    const deletionDate = item.deletedAt + 30 * 24 * 60 * 60 * 1000; // 30 days
+    const now = Date.now();
+    const diffMs = deletionDate - now;
+    
+    if (diffMs <= 0) return { text: '삭제 예정', isUrgent: true };
+    
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays <= 3) return { text: `${diffDays}일 후 삭제`, isUrgent: true };
+    if (diffDays <= 7) return { text: `${diffDays}일 후 삭제`, isUrgent: false };
+    return { text: `${diffDays}일 후 삭제`, isUrgent: false };
+  }, [item.deletedAt, isTrashView]);
+
   // Image fit class based on settings
   const imageFitClass = settings.imageFit === 'contain' ? 'object-contain' : 'object-cover';
 
@@ -683,6 +698,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
           <p className="text-sm text-slate-800 truncate font-medium">{getDisplayText()}</p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] text-slate-400">{formattedDate}</span>
+            {deletionInfo && (
+              <span className={`flex items-center gap-0.5 text-[10px] ${deletionInfo.isUrgent ? 'text-red-500' : 'text-slate-400'}`}>
+                <Trash2 size={10} />
+                {deletionInfo.text}
+              </span>
+            )}
             {item.expiresAt && (
               <span className="flex items-center text-orange-500" title={`만료: ${new Date(item.expiresAt).toLocaleDateString('ko-KR')}`}>
                 <Timer size={10} />
@@ -779,6 +800,12 @@ const FeedItem: React.FC<FeedItemProps> = ({
       <div className="px-3 py-2 border-t border-slate-50 flex items-center justify-between text-slate-400 bg-white">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-medium">{formattedDate}</span>
+          {deletionInfo && (
+            <span className={`flex items-center gap-0.5 text-[10px] ${deletionInfo.isUrgent ? 'text-red-500' : 'text-slate-400'}`}>
+              <Trash2 size={10} />
+              {deletionInfo.text}
+            </span>
+          )}
         </div>
         
         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">

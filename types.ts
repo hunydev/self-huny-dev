@@ -34,6 +34,7 @@ export interface Item {
   uploadStatus?: 'uploading' | 'failed' | null; // Background upload status (null = completed)
   reminderAt?: number; // Reminder timestamp (for scheduled items)
   expiresAt?: number; // Expiration timestamp (for auto-delete items)
+  deletedAt?: number; // Soft delete timestamp (for trash items)
   createdAt: number;
 }
 

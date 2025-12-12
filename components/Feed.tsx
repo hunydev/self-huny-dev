@@ -232,19 +232,26 @@ const Feed: React.FC<FeedProps> = ({
     <div className="space-y-8 pb-20">
       {/* Trash view header with empty trash button */}
       {isTrashView && items.length > 0 && onEmptyTrash && (
-        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-          <div className="flex items-center gap-2 text-amber-700">
-            <Trash2 size={18} />
-            <span className="text-sm font-medium">
-              휴지통에 {items.length}개의 아이템이 있습니다
-            </span>
+        <div className="mt-2 space-y-3">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+            <p className="text-sm text-slate-600">
+              🗑️ 휴지통으로 이동한 아이템은 <strong>30일</strong> 후 자동으로 영구 삭제됩니다.
+            </p>
           </div>
-          <button
-            onClick={onEmptyTrash}
-            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            휴지통 비우기
-          </button>
+          <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2 text-amber-700">
+              <Trash2 size={18} />
+              <span className="text-sm font-medium">
+                휴지통에 {items.length}개의 아이템이 있습니다
+              </span>
+            </div>
+            <button
+              onClick={onEmptyTrash}
+              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              휴지통 비우기
+            </button>
+          </div>
         </div>
       )}
 
