@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Pencil, Eraser, Undo2, Redo2, Trash2, X, Palette, Minus, Plus } from 'lucide-react';
+import { Pencil, Eraser, Undo2, Redo2, Trash2, X, Palette, Minus, Plus, Image as ImageIcon } from 'lucide-react';
 
 // Preset colors for the color palette
 const PRESET_COLORS = [
@@ -38,11 +38,13 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
     ({ width = 600, height = 300, onClose, onContentChange, initialData }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const containerRef = useRef<HTMLDivElement>(null);
+        const fileInputRef = useRef<HTMLInputElement>(null);
         const [isDrawing, setIsDrawing] = useState(false);
         const [currentColor, setCurrentColor] = useState('#000000');
         const [lineWidth, setLineWidth] = useState(3);
         const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
         const [showColorPicker, setShowColorPicker] = useState(false);
+        const [isLoadingImage, setIsLoadingImage] = useState(false);
 
         // Undo/Redo stacks
         const [history, setHistory] = useState<ImageData[]>([]);
@@ -51,6 +53,26 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
 
         // Canvas actual dimensions
         const [canvasDimensions, setCanvasDimensions] = useState({ width, height });
+
+        // Check if canvas is empty (all white)
+        const isEmpty = useCallback(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return true;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return true;
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // Check if all pixels are white
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
+                    return false;
+                }
+            }
+            return true;
+        }, []);
 
         // Update canvas dimensions based on container
         useEffect(() => {
@@ -81,18 +103,30 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // Reset history when dimensions or initial data change
+            setHistory([]);
+            setHistoryIndex(-1);
+
             // Load initial data if provided
             if (initialData) {
                 const img = new Image();
                 img.onload = () => {
-                    ctx.drawImage(img, 0, 0);
+                    // Fit image within canvas while preserving aspect ratio
+                    const scale = Math.min(canvas.width / img.width, canvas.height / img.height, 1);
+                    const drawWidth = img.width * scale;
+                    const drawHeight = img.height * scale;
+                    const offsetX = (canvas.width - drawWidth) / 2;
+                    const offsetY = (canvas.height - drawHeight) / 2;
+
+                    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
                     saveState();
+                    onContentChange?.(!isEmpty());
                 };
                 img.src = initialData;
             } else {
                 saveState();
             }
-        }, [canvasDimensions, initialData]);
+        }, [canvasDimensions, initialData, onContentChange, isEmpty]);
 
         // Save current state to history
         const saveState = useCallback(() => {
@@ -277,25 +311,73 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
             onContentChange?.(false);
         }, [saveState, onContentChange]);
 
-        // Check if canvas is empty (all white)
-        const isEmpty = useCallback(() => {
+        // Draw an image onto the canvas, fitting it to the available space
+        const drawImageToCanvas = useCallback((src: string) => {
             const canvas = canvasRef.current;
-            if (!canvas) return true;
+            if (!canvas) return;
 
             const ctx = canvas.getContext('2d');
-            if (!ctx) return true;
+            if (!ctx) return;
 
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+            setIsLoadingImage(true);
+            const img = new Image();
+            img.onload = () => {
+                // Reset to white background before drawing
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Check if all pixels are white
-            for (let i = 0; i < data.length; i += 4) {
-                if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
-                    return false;
+                const scale = Math.min(canvas.width / img.width, canvas.height / img.height, 1);
+                const drawWidth = img.width * scale;
+                const drawHeight = img.height * scale;
+                const offsetX = (canvas.width - drawWidth) / 2;
+                const offsetY = (canvas.height - drawHeight) / 2;
+
+                ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+                saveState();
+                onContentChange?.(true);
+                setIsLoadingImage(false);
+            };
+            img.onerror = () => {
+                setIsLoadingImage(false);
+            };
+            img.src = src;
+        }, [onContentChange, saveState]);
+
+        // Handle image uploads (file selection)
+        const handleImageUpload = useCallback((file: File | null) => {
+            if (!file || !file.type.startsWith('image/')) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const result = e.target?.result as string;
+                if (result) {
+                    drawImageToCanvas(result);
                 }
-            }
-            return true;
-        }, []);
+            };
+            reader.readAsDataURL(file);
+        }, [drawImageToCanvas]);
+
+        // Handle paste events for images
+        useEffect(() => {
+            const container = containerRef.current;
+            if (!container) return;
+
+            const handlePaste = (event: ClipboardEvent) => {
+                if (!event.clipboardData) return;
+                const items = Array.from(event.clipboardData.items);
+                const imageItem = items.find((item) => item.type.startsWith('image/'));
+                if (imageItem) {
+                    const file = imageItem.getAsFile();
+                    if (file) {
+                        event.preventDefault();
+                        handleImageUpload(file);
+                    }
+                }
+            };
+
+            container.addEventListener('paste', handlePaste);
+            return () => container.removeEventListener('paste', handlePaste);
+        }, [handleImageUpload]);
 
         // Expose methods to parent
         useImperativeHandle(ref, () => ({
@@ -316,20 +398,48 @@ const SketchCanvas = forwardRef<SketchCanvasHandle, SketchCanvasProps>(
                         <Pencil size={16} className="text-violet-500" />
                         <span className="text-sm font-medium text-violet-600">스케치 모드</span>
                     </div>
-                    {onClose && (
+                    <div className="flex items-center gap-2">
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                                handleImageUpload(e.target.files?.[0] ?? null);
+                                // Reset input value so the same file can be uploaded again
+                                if (e.target) e.target.value = '';
+                            }}
+                        />
                         <button
-                            onClick={onClose}
-                            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isLoadingImage}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors border ${isLoadingImage
+                                ? 'bg-slate-100 text-slate-400 border-slate-200'
+                                : 'bg-white text-violet-600 border-violet-200 hover:bg-violet-50'
+                                }`}
                         >
-                            <X size={16} />
+                            <ImageIcon size={16} />
+                            <span className="hidden sm:inline">이미지 불러오기</span>
+                            <span className="sm:hidden">이미지</span>
                         </button>
-                    )}
+                        {onClose && (
+                            <button
+                                onClick={onClose}
+                                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
                 </div>
+                <p className="text-xs text-slate-500">이미지를 업로드하거나 붙여넣어 캔버스에 불러온 뒤 위에 스케치할 수 있어요.</p>
 
                 {/* Canvas Container */}
                 <div
                     ref={containerRef}
                     className="relative border-2 border-dashed border-violet-200 rounded-lg overflow-hidden bg-white"
+                    tabIndex={0}
+                    title="여기에 이미지를 붙여넣을 수 있어요"
                 >
                     <canvas
                         ref={canvasRef}
